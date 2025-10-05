@@ -167,6 +167,8 @@ void navmesh::build_tile(const float* position)
 	last_built_tile_bmax[1] = bmax[1];
 	last_built_tile_bmax[2] = bmin[2] + (ty + 1) * ts;
 
+	context->resetLog();
+
 	int data_size = 0;
 	unsigned char* data = build_tile_mesh(tx, ty, last_built_tile_bmin, last_built_tile_bmax, data_size);
 
@@ -291,6 +293,15 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 	const int ntris = geometry->getMesh()->getTriCount();
 	const rcChunkyTriMesh* chunky_mesh = geometry->getChunkyMesh();
 
+
+	// TODO: Adjust these as needed. Also, most of these should be set in the constructor, probably.
+	config.maxVertsPerPoly = 6.0f;
+	config.tileSize = tile_size;
+	config.borderSize = config.walkableRadius + 3;
+	config.width = config.tileSize + config.borderSize * 2;
+	config.height = config.tileSize + config.borderSize * 2;
+	config.detailSampleDist = 6.0f;
+	config.detailSampleMaxError = 1.0f;
 
 	rcVcopy(config.bmin, bmin);
 	rcVcopy(config.bmax, bmax);
@@ -525,6 +536,7 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 	}
 
 	data_size = nav_data_size;
+	context->log(RC_LOG_PROGRESS, "data size: %d", data_size);
 
 	return nullptr;
 }

@@ -6,7 +6,7 @@
 
 #include <iostream>
 
-int main() {
+int main(int argc, char* argv[]) {
     std::cout << "hello world!" << std::endl;
 
     agent_params params;
@@ -20,17 +20,14 @@ int main() {
     navcontext* context = mesh->get_context();
     InputGeom* geometry = new InputGeom();
 
-    geometry->load(context, "tests/meshes/dungeon.obj");
+    geometry->load(context, "../../../tests/meshes/dungeon.obj");
 
-    context->log(RC_LOG_PROGRESS, "Hi\n");
     context->dump_log("Geometry log:");
 
     mesh->on_mesh_changed(geometry);
 
-    if (mesh->build()) {
-        std::cout << "Successfully built navmesh (lie)" << std::endl;
-    }
+    mesh->build();
     context->dump_log("Build log: ");
-
+    
     return 0;
 }
