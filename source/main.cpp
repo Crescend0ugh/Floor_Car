@@ -3,16 +3,11 @@
 //
 
 #include "navmesh.h"
-#include "vector.h"
 
 #include <iostream>
 
-
 int main() {
-    maid::vector3<double> a(1,1,1);
-    maid::vector3<double> b(1,1,1);
-
-    std::cout << "ff" << std::endl;
+    std::cout << "hello world!" << std::endl;
 
     agent_params params;
     params.cell_height = 0.2f;
