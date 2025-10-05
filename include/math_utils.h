@@ -10,7 +10,6 @@ namespace maid
 {
 
 
-    //TODO impl
     template<typename T>
     static constexpr vector3<T> spherical_to_cartesian(T p, T theta, T phi)
     {
@@ -18,14 +17,12 @@ namespace maid
     }
 
 
-    //TODO impl
     template<typename T>
     static constexpr T degrees_to_radians(T theta)
     {
         return {theta * std::numbers::pi / static_cast<T>(180)};
     }
 
-    //TODO impl
     template<typename T>
     static constexpr T radians_to_degrees(T rads)
     {
