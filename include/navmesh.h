@@ -2,8 +2,13 @@
 
 #include <Recast.h>
 #include <DetourNavMesh.h>
+#include <DetourNavMeshQuery.h>
+#include <InputGeom.h>
 
-struct agent_params {
+#include "navcontext.h"
+
+struct agent_params 
+{
     float radius;
     float height;
     float max_slope; // Maximum slope angle we can move up
@@ -14,34 +19,46 @@ struct agent_params {
     float cell_height;
 };
 
-class navmesh {
+class navmesh 
+{
     private:
         rcConfig config;
-        rcContext* context = nullptr;
+        navcontext* context = nullptr;
 
         rcHeightfield* height_field = nullptr;
         rcCompactHeightfield* compact_height_field = nullptr;
         rcContourSet* contour_set = nullptr;
         rcPolyMesh* poly_mesh = nullptr;
         rcPolyMeshDetail* poly_mesh_detail = nullptr;
+        dtNavMesh* mesh = nullptr;
+        dtNavMeshQuery* nav_query = nullptr;
 
-        dtNavMesh* final_navmesh = nullptr;
+        InputGeom* geometry = nullptr;
+
+        unsigned char* tri_areas;
 
         float tile_size = 30.0f;
+        int tile_tri_count = 0;
+        int max_tiles = 0;
+        int max_polys_per_tile = 0;
+
+        float last_built_tile_bmin[3];
+        float last_built_tile_bmax[3];
 
         void cleanup();
 
         void build_tile(const float* position);
-        void get_tile_pos(const float* position, int& x, int& y);
+        void get_tile_pos(const float* position, int& tx, int& ty);
         void remove_tile(const float* position);
         void build_all_tiles();
         void remove_all_tiles();
-        unsigned char* build_tile_mesh(const int tile_x, const int tile_y, const float* min_bounds, const float* max_bounds, int& data_size);
+        unsigned char* build_tile_mesh(const int tx, const int ty, const float* bmin, const float* bmax, int& data_size);
     
     public:
-        navmesh(agent_params*params);
+        navmesh(agent_params* params);
         ~navmesh();
 
         bool build();
-        void on_mesh_changed();
+        void on_mesh_changed(InputGeom* new_geometry);
+        navcontext* get_context() { return context; };
 };

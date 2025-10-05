@@ -17,5 +17,20 @@ int main() {
     params.max_slope = 20.0f;
 
     navmesh* mesh = new navmesh(&params);
+    navcontext* context = mesh->get_context();
+    InputGeom* geometry = new InputGeom();
+
+    geometry->load(context, "tests/meshes/dungeon.obj");
+
+    context->log(RC_LOG_PROGRESS, "Hi\n");
+    context->dump_log("Geometry log:");
+
+    mesh->on_mesh_changed(geometry);
+
+    if (mesh->build()) {
+        std::cout << "Successfully built navmesh (lie)" << std::endl;
+    }
+    context->dump_log("Build log: ");
+
     return 0;
 }
