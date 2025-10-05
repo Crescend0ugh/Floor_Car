@@ -20,9 +20,11 @@ namespace maid
 
         constexpr vector3 operator^(const vector3 &other) const
         {
-            return {y*other.z - z*other.y, z*other.x - x*other.z, x*other.y - y*other.x};
+            return vector3{y*other.z - z*other.y, z*other.x - x*other.z, x*other.y - y*other.x};
         };
 
+        //TODO since the '^' operator has lower precedence than '<<' we get an error without the parenthesis when we try to print vec ^ vec
+        //TODO I could change the operator symbol to % or just use the .cross() method
         constexpr vector3 cross(const vector3 &other) const
         {
             return *this ^ other;
@@ -112,23 +114,21 @@ namespace maid
             return sqrt(x*x + y*y + z*z);
         };
 
-        constexpr void normalize()
+        constexpr vector3& normalize()
         {
             *this /= length();
+            return *this;
         };
 
-        constexpr bool normalize_safe()
+        //TODO this should also have a tolerance/epsilon parameter
+        constexpr vector3& normalize_safe()
         {
-            if(zero())
-            {
-                return false;
-            }
+            return zero() ? *this : normalize();
+        };
 
-            else
-            {
-                normalize();
-                return true;
-            }
+        constexpr vector3& normalize_safe(bool& normalized)
+        {
+            return (normalized = !zero()) ? normalize() : *this;
         };
 
         //TODO maybe we should add a tolerance/epsilon parameter
