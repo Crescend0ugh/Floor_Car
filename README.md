@@ -4,4 +4,4 @@ The floor car is a miniature automobile that autonomously navigates and detects 
 This repository contains the code used for the prototype.
 
 ## Libraries Used
-- Library 1: 
+- [Recast](https://github.com/recastnavigation/recastnavigation): Navmesh generation 

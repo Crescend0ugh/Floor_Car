@@ -3,4 +3,12 @@ project(Floor_Car)
 
 set(CMAKE_CXX_STANDARD 17)
 
+add_subdirectory(third_party/recastnavigation/Recast)
+add_subdirectory(third_party/recastnavigation/Detour)
+add_subdirectory(third_party/recastnavigation/DetourCrowd)
+add_subdirectory(third_party/recastnavigation/DetourTileCache)
+add_subdirectory(third_party/recastnavigation/DebugUtils)
+
 add_executable(FloorCar source/main.cpp)
+target_link_libraries(FloorCar Recast Detour DetourCrowd DetourTileCache DebugUtils)
+target_include_directories(FloorCar PRIVATE include/)
