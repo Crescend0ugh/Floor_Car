@@ -4,9 +4,13 @@
 
 #include "navmesh.h"
 #include <iostream>
+#include "vector.h"
+
 
 int main() {
-    std::cout << "Hello" << std::endl;
+    maid::vector3<double> a(1,1,1);
+    maid::vector3<double> b(1,1,1);
 
+    std::cout << ;
     return 0;
 }
