@@ -25,7 +25,7 @@ namespace maid
 
         constexpr vector3 cross(const vector3 &other) const
         {
-            return *this * other;
+            return *this ^ other;
         };
 
         constexpr T operator*(const vector3 &other) const
