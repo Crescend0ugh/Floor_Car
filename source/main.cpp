@@ -16,5 +16,6 @@ int main() {
     params.radius = 0.6f;
     params.max_slope = 20.0f;
 
+    navmesh* mesh = new navmesh(&params);
     return 0;
 }

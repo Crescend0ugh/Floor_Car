@@ -1,3 +1,7 @@
+file(GLOB SOURCES
+    source/*.cpp
+)
+
 cmake_minimum_required(VERSION 3.28)
 project(Floor_Car)
 
@@ -9,6 +13,6 @@ add_subdirectory(third_party/recastnavigation/DetourCrowd)
 add_subdirectory(third_party/recastnavigation/DetourTileCache)
 add_subdirectory(third_party/recastnavigation/DebugUtils)
 
-add_executable(FloorCar source/main.cpp)
+add_executable(FloorCar ${SOURCES})
 target_link_libraries(FloorCar Recast Detour DetourCrowd DetourTileCache DebugUtils)
 target_include_directories(FloorCar PRIVATE include/)

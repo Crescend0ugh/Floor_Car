@@ -89,25 +89,5 @@ void navmesh::build_all_tiles() {}
 void navmesh::remove_all_tiles() {}
 
 unsigned char* navmesh::build_tile_mesh(const int tile_x, const int tile_y, const float* min_bounds, const float* max_bounds, int& data_size) {
-	cleanup();
-
-	/*
-	const float* verts = m_geom->getMesh()->getVerts();
-	const int nverts = m_geom->getMesh()->getVertCount();
-	const int ntris = m_geom->getMesh()->getTriCount();
-	const rcChunkyTriMesh* chunkyMesh = m_geom->getChunkyMesh();
-	*/
-
-	rcCalcGridSize(config.bmin, config.bmax, config.cs, &config.width, &config.height);
-
-	// Allocate voxel heightfield where we rasterize our input data to
-	height_field = rcAllocHeightfield();
-	if (!height_field) {
-		context->log(RC_LOG_ERROR, "nav_mesh::build: Out of memory for height field");
-		return false;
-	}
-	if (!rcCreateHeightfield(context, *height_field, config.width, config.height, config.bmin, config.bmax, config.cs, config.ch)) {
-		context->log(RC_LOG_ERROR, "nav_mesh::build: Unable to create height field");
-		return false;
-	}
+	return nullptr;
 }
