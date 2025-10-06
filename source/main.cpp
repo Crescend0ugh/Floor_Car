@@ -28,6 +28,6 @@ int main(int argc, char* argv[]) {
 
     mesh->build();
     context->dump_log("Build log: ");
-    
+
     return 0;
 }

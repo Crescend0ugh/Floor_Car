@@ -76,7 +76,6 @@ void navmesh::cleanup()
 
 bool navmesh::build() 
 {
-	// Is geometry loaded?
 	if (!geometry || !geometry->getMesh())
 	{
 		context->log(RC_LOG_ERROR, "navmesh::build: No vertices and triangles.");
@@ -453,12 +452,12 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 	poly_mesh = rcAllocPolyMesh();
 	if (!poly_mesh)
 	{
-		context->log(RC_LOG_ERROR, "buildNavigation: Out of memory 'poly_mesh'.");
+		context->log(RC_LOG_ERROR, "navmesh::build_tile_mesh: Out of memory 'poly_mesh'.");
 		return nullptr;
 	}
 	if (!rcBuildPolyMesh(context, *contour_set, config.maxVertsPerPoly, *poly_mesh))
 	{
-		context->log(RC_LOG_ERROR, "buildNavigation: Could not triangulate contours.");
+		context->log(RC_LOG_ERROR, "navmesh::build_tile_mesh: Could not triangulate contours.");
 		return nullptr;
 	}
 
@@ -466,7 +465,7 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 	poly_mesh_detail = rcAllocPolyMeshDetail();
 	if (!poly_mesh_detail)
 	{
-		context->log(RC_LOG_ERROR, "buildNavigation: Out of memory 'dmesh'.");
+		context->log(RC_LOG_ERROR, "navmesh::build_tile_mesh: Out of memory 'dmesh'.");
 		return nullptr;
 	}
 
@@ -474,7 +473,7 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 		config.detailSampleDist, config.detailSampleMaxError,
 		*poly_mesh_detail))
 	{
-		context->log(RC_LOG_ERROR, "buildNavigation: Could build polymesh detail.");
+		context->log(RC_LOG_ERROR, "navmesh::build_tile_mesh: Could build polymesh detail.");
 		return nullptr;
 	}
 

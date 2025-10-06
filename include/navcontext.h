@@ -16,21 +16,21 @@ class navcontext : public rcContext
 	char text_pool[TEXT_POOL_SIZE];
 	int text_pool_size;
 
-	public:
-		navcontext();
+public:
+	navcontext();
 
-		/// Dumps the log to stdout.
-		void dump_log(const char* format, ...);
-		/// Returns number of log messages.
-		int get_log_count() const;
-		/// Returns log message text.
-		const char* get_log_text(const int i) const;
+	/// Dumps the log to stdout.
+	void dump_log(const char* format, ...);
+	/// Returns number of log messages.
+	int get_log_count() const;
+	/// Returns log message text.
+	const char* get_log_text(const int i) const;
 
-	protected:
-		virtual void doResetLog();
-		virtual void doLog(const rcLogCategory category, const char* msg, const int len);
-		virtual void doResetTimers();
-		virtual void doStartTimer(const rcTimerLabel label);
-		virtual void doStopTimer(const rcTimerLabel label);
-		virtual int doGetAccumulatedTime(const rcTimerLabel label) const;
+protected:
+	virtual void doResetLog();
+	virtual void doLog(const rcLogCategory category, const char* msg, const int len);
+	virtual void doResetTimers();
+	virtual void doStartTimer(const rcTimerLabel label);
+	virtual void doStopTimer(const rcTimerLabel label);
+	virtual int doGetAccumulatedTime(const rcTimerLabel label) const;
 };
