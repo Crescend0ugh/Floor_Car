@@ -31,3 +31,8 @@ void test_vector()
     maid::spherical_to_cartesian(1.f, 1.f, 1.f);
 
 }
+
+int main()
+{
+    test_vector();
+}
