@@ -52,8 +52,10 @@ navmesh::~navmesh()
 	cleanup();
 
 	dtFreeNavMeshQuery(nav_query);
-	dtFreeNavMesh(mesh);
-	mesh = nullptr;
+	nav_query = nullptr;
+
+	dtFreeNavMesh(navmesh_internal);
+	navmesh_internal = nullptr;
 }
 
 void navmesh::cleanup()
@@ -82,9 +84,9 @@ bool navmesh::build()
 		return false;
 	}
 
-	dtFreeNavMesh(mesh);
-	mesh = dtAllocNavMesh();
-	if (!mesh)
+	dtFreeNavMesh(navmesh_internal);
+	navmesh_internal = dtAllocNavMesh();
+	if (!navmesh_internal)
 	{
 		context->log(RC_LOG_ERROR, "navmesh::build: Could not allocate navmesh.");
 		return false;
@@ -99,10 +101,17 @@ bool navmesh::build()
 
 	dtStatus status;
 
-	status = mesh->init(&params);
+	status = navmesh_internal->init(&params);
 	if (dtStatusFailed(status))
 	{
 		context->log(RC_LOG_ERROR, "navmesh::build: Could not init navmesh.");
+		return false;
+	}
+
+	status = nav_query->init(navmesh_internal, 2048);
+	if (dtStatusFailed(status))
+	{
+		context->log(RC_LOG_ERROR, "navmesh::build: Could not init Detour navmesh query");
 		return false;
 	}
 
@@ -142,14 +151,14 @@ void navmesh::on_mesh_changed(InputGeom* new_geometry)
 
 	cleanup();
 
-	dtFreeNavMesh(mesh);
-	mesh = 0;
+	dtFreeNavMesh(navmesh_internal);
+	navmesh_internal = 0;
 }
 
 void navmesh::build_tile(const float* position) 
 {
 	if (!geometry) return;
-	if (!mesh) return;
+	if (!navmesh_internal) return;
 
 	const float* bmin = geometry->getNavMeshBoundsMin();
 	const float* bmax = geometry->getNavMeshBoundsMax();
@@ -172,13 +181,13 @@ void navmesh::build_tile(const float* position)
 	unsigned char* data = build_tile_mesh(tx, ty, last_built_tile_bmin, last_built_tile_bmax, data_size);
 
 	// Remove any previous data (navmesh owns and deletes the data).
-	mesh->removeTile(mesh->getTileRefAt(tx, ty, 0), 0, 0);
+	navmesh_internal->removeTile(navmesh_internal->getTileRefAt(tx, ty, 0), 0, 0);
 
 	// Add tile, or leave the location empty.
 	if (data)
 	{
 		// Let the navmesh own the data.
-		dtStatus status = mesh->addTile(data, data_size, DT_TILE_FREE_DATA, 0, 0);
+		dtStatus status = navmesh_internal->addTile(data, data_size, DT_TILE_FREE_DATA, 0, 0);
 		if (dtStatusFailed(status))
 			dtFree(data);
 	}
@@ -198,7 +207,7 @@ void navmesh::get_tile_pos(const float* position, int& tx, int& ty)
 void navmesh::remove_tile(const float* position)
 {
 	if (!geometry) return;
-	if (!mesh) return;
+	if (!navmesh_internal) return;
 
 	const float* bmin = geometry->getNavMeshBoundsMin();
 	const float* bmax = geometry->getNavMeshBoundsMax();
@@ -215,13 +224,13 @@ void navmesh::remove_tile(const float* position)
 	last_built_tile_bmax[1] = bmax[1];
 	last_built_tile_bmax[2] = bmin[2] + (ty + 1) * ts;
 
-	mesh->removeTile(mesh->getTileRefAt(tx, ty, 0), 0, 0);
+	navmesh_internal->removeTile(navmesh_internal->getTileRefAt(tx, ty, 0), 0, 0);
 }
 
 void navmesh::build_all_tiles()
 {
 	if (!geometry) return;
-	if (!mesh) return;
+	if (!navmesh_internal) return;
 
 	const float* bmin = geometry->getNavMeshBoundsMin();
 	const float* bmax = geometry->getNavMeshBoundsMax();
@@ -249,9 +258,9 @@ void navmesh::build_all_tiles()
 			if (data)
 			{
 				// Remove any previous data (navmesh owns and deletes the data).
-				mesh->removeTile(mesh->getTileRefAt(x, y, 0), 0, 0);
+				navmesh_internal->removeTile(navmesh_internal->getTileRefAt(x, y, 0), 0, 0);
 				// Let the navmesh own the data.
-				dtStatus status = mesh->addTile(data, data_size, DT_TILE_FREE_DATA, 0, 0);
+				dtStatus status = navmesh_internal->addTile(data, data_size, DT_TILE_FREE_DATA, 0, 0);
 				if (dtStatusFailed(status))
 					dtFree(data);
 			}
@@ -261,7 +270,7 @@ void navmesh::build_all_tiles()
 
 void navmesh::remove_all_tiles()
 {
-	if (!geometry || !mesh)
+	if (!geometry || !navmesh_internal)
 		return;
 
 	const float* bmin = geometry->getNavMeshBoundsMin();
@@ -274,14 +283,14 @@ void navmesh::remove_all_tiles()
 
 	for (int y = 0; y < th; ++y)
 		for (int x = 0; x < tw; ++x)
-			mesh->removeTile(mesh->getTileRefAt(x, y, 0), 0, 0);
+			navmesh_internal->removeTile(navmesh_internal->getTileRefAt(x, y, 0), 0, 0);
 }
 
 unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float* bmin, const float* bmax, int& data_size) 
 {
 	if (!geometry || !geometry->getMesh() || !geometry->getChunkyMesh())
 	{
-		context->log(RC_LOG_ERROR, "navmesh::build_tile_mesh: Input mesh is not specified.");
+		context->log(RC_LOG_ERROR, "navmesh::build_tile_mesh: Input navmesh is not specified.");
 		return nullptr;
 	}
 
@@ -494,6 +503,17 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 			return 0;
 		}
 
+		// Update poly flags from areas.
+		for (int i = 0; i < poly_mesh->npolys; ++i)
+		{
+			if (poly_mesh->areas[i] == RC_WALKABLE_AREA) {
+				poly_mesh->flags[i] = 0x01;
+			}
+			else {
+				poly_mesh->flags[i] = 0x00;
+			}
+		}
+
 		dtNavMeshCreateParams params;
 		memset(&params, 0, sizeof(params));
 		params.verts = poly_mesh->verts;
@@ -527,15 +547,13 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 		params.ch = config.ch;
 		params.buildBvTree = true;
 
-		if (!dtCreateNavMeshData(&params, &nav_data, &nav_data_size))
-		{
+		if (!dtCreateNavMeshData(&params, &nav_data, &nav_data_size)) {
 			context->log(RC_LOG_ERROR, "Could not build Detour navmesh.");
 			return nullptr;
 		}
 	}
 
 	data_size = nav_data_size;
-	context->log(RC_LOG_PROGRESS, "data size: %d", data_size);
 
 	return nullptr;
 }

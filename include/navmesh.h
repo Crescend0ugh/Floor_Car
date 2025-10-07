@@ -29,7 +29,7 @@ class navmesh
     rcContourSet* contour_set = nullptr;
     rcPolyMesh* poly_mesh = nullptr;
     rcPolyMeshDetail* poly_mesh_detail = nullptr;
-    dtNavMesh* mesh = nullptr;
+    dtNavMesh* navmesh_internal  = nullptr;
     dtNavMeshQuery* nav_query = nullptr;
 
     InputGeom* geometry = nullptr;
@@ -61,6 +61,6 @@ public:
     bool build();
     void on_mesh_changed(InputGeom* new_geometry);
     navcontext* get_context() { return context; };
-    dtNavMesh* get_mesh() { return mesh; };
+    dtNavMesh* get_navmesh_internal() { return navmesh_internal; };
     dtNavMeshQuery* get_nav_query() { return nav_query; };
 };

@@ -4,73 +4,114 @@
 
 path::path() 
 {
+	filter.setIncludeFlags(0xffff);
 	filter.setExcludeFlags(0);
 
 	// Not sure where these numbers come from
-	half_extents[0] = 2.0f;
-	half_extents[1] = 4.0f;
-	half_extents[2] = 2.0f;
+	half_extents[0] = 1.0f;
+	half_extents[1] = 2.0f;
+	half_extents[2] = 1.0f;
 }
 
 path::~path() 
 {}
 
-void path::init(navmesh* navmesh) 
+void path::init(class navmesh* mesh) 
 {
-	mesh = navmesh;
+	navmesh = mesh;
 	query = navmesh->get_nav_query();
-
+	
 	recalculate();
 }
 
-// Using sliced paths, which are slow but try extra hard to find a way to the target
 void path::recalculate()
 { 
-	if (!mesh) return;
+	if (!navmesh) return;
 
-	query->findNearestPoly(start_pos, half_extents, &filter, &start_poly_ref, nullptr);
-	query->findNearestPoly(end_pos, half_extents, &filter, &end_poly_ref, nullptr);
+	if (is_start_pos_set) {
+		float pt[3] = { 0 };
+		dtStatus status = query->findNearestPoly(start_pos, half_extents, &filter, &start_poly_ref, pt);
+		if (dtStatusSucceed(status)) {
+			fprintf(stdout, "%f %f %f!\n", pt[0], pt[1], pt[2]);
+		}
+	}
+	else {
+		start_poly_ref = 0;
+	}
+
+	if (is_end_pos_set) {
+		query->findNearestPoly(end_pos, half_extents, &filter, &end_poly_ref, nullptr);
+	}
+	else {
+		end_poly_ref = 0;
+	}
 	
 	pathfind_status = DT_FAILURE;
 
-	npolys = 0;
+	if (!start_poly_ref || !end_poly_ref || !is_start_pos_set || !is_end_pos_set) {
+		polys_count = 0;
+		path_waypoints_count = 0;
+		return;
+	}
 
-	if (start_poly_ref && end_poly_ref) {
-		pathfind_status = query->initSlicedFindPath(start_poly_ref, end_poly_ref, start_pos, end_pos, &filter, DT_FINDPATH_ANY_ANGLE);
+	query->findPath(start_poly_ref, end_poly_ref, start_pos, end_pos, &filter, polys, &polys_count, MAX_POLYS);
+	path_waypoints_count = 0;
+
+	if (polys_count) {
+		float end_pos_copy[3];
+		dtVcopy(end_pos_copy, end_pos);
+
+		// In case of partial path, make sure the end point is clamped to the last polygon
+		if (polys[polys_count - 1] != end_poly_ref) {
+			query->closestPointOnPoly(polys[polys_count - 1], end_pos, end_pos_copy, nullptr);
+		}
+
+		query->findStraightPath(start_pos, end_pos_copy, polys, polys_count,
+			path_waypoints, path_waypoint_flags, path_polys, &path_waypoints_count, MAX_POLYS, DT_STRAIGHTPATH_ALL_CROSSINGS);
 	}
 }
 
-// To be called in an update loop
-void path::update()
-{
-	if (dtStatusInProgress(pathfind_status)) {
-		pathfind_status = query->updateSlicedFindPath(1, 0);
+void path::set_start(const float* position) {
+	rcVcopy(start_pos, position);
+	is_start_pos_set = true;
+	recalculate();
+}
+
+void path::set_end(const float* position) {
+	rcVcopy(end_pos, position);
+	is_end_pos_set = true;
+	recalculate();
+}
+
+const float* path::get_next_waypoint() {
+	// We've finished traversing the path
+	if (current_waypoint_id >= path_waypoints_count - 1) {
+		return nullptr;
 	}
-	if (dtStatusSucceed(pathfind_status)) {
-		query->finalizeSlicedFindPath(polys, &npolys, MAX_POLYS);
-		straight_path_count = 0;
-		
-		if (npolys) {
-			float end_pos_copy[3];
-			dtVcopy(end_pos_copy, end_pos);
 
-			// In case of partial path, make sure the end point is clamped to the last polygon
-			if (polys[npolys - 1] != end_poly_ref) {
-				query->closestPointOnPoly(polys[npolys - 1], end_pos, end_pos_copy, nullptr);
-			}
+	float goal[3];
+	goal[0] = path_waypoints[current_waypoint_id];
+	goal[1] = path_waypoints[current_waypoint_id + 1];
+	goal[2] = path_waypoints[current_waypoint_id + 2];
+	return goal;
+}
 
-			query->findStraightPath(start_pos, end_pos, polys, npolys,
-				straight_path, straight_path_flags, straight_path_polys, &straight_path_count, MAX_POLYS, DT_STRAIGHTPATH_ALL_CROSSINGS);
-		}
-
-		pathfind_status = DT_FAILURE;
+void path::increment_waypoint() {
+	if (current_waypoint_id >= path_waypoints_count - 1) {
+		return;
 	}
+
+	current_waypoint_id++;
 }
 
 void path::reset()
 {
 	start_poly_ref = 0;
 	end_poly_ref = 0;
-	npolys = 0;
-	straight_path_count = 0;
+	polys_count = 0;
+	path_waypoints_count = 0;
+	current_waypoint_id = 0;
+
+	is_start_pos_set = false;
+	is_end_pos_set = false;
 }
