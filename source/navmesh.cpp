@@ -190,6 +190,8 @@ void navmesh::build_tile(const float* position)
 		dtStatus status = navmesh_internal->addTile(data, data_size, DT_TILE_FREE_DATA, 0, 0);
 		if (dtStatusFailed(status))
 			dtFree(data);
+
+		fprintf(stdout, "built tile %d %d \n", tx, ty);
 	}
 }
 
@@ -555,5 +557,5 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 
 	data_size = nav_data_size;
 
-	return nullptr;
+	return nav_data;
 }

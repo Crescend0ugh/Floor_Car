@@ -34,10 +34,13 @@ int main() {
     float end[3] = { -1.292282f, 9.998180f, -5.186989f };
     p->set_end(end);
 
-    fprintf(stdout, "path points: %d", p->get_waypoint_count());
+    fprintf(stdout, "path points: %d\n", p->get_waypoint_count());
     for (int i = 0; i < p->get_waypoint_count(); ++i) {
         const float* next_position = p->get_next_waypoint();
-        fprintf(stdout, "position %d: [%f, %f, %f]", i, next_position[0], next_position[1], next_position[2]);
+        if (next_position) {
+            fprintf(stdout, "position %d: [%f, %f, %f]\n", i, next_position[0], next_position[1], next_position[2]);
+        }
+  
         p->increment_waypoint();
     }
 

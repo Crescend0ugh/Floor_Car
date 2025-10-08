@@ -29,11 +29,7 @@ void path::recalculate()
 	if (!navmesh) return;
 
 	if (is_start_pos_set) {
-		float pt[3] = { 0 };
-		dtStatus status = query->findNearestPoly(start_pos, half_extents, &filter, &start_poly_ref, pt);
-		if (dtStatusSucceed(status)) {
-			fprintf(stdout, "%f %f %f!\n", pt[0], pt[1], pt[2]);
-		}
+		query->findNearestPoly(start_pos, half_extents, &filter, &start_poly_ref, nullptr);
 	}
 	else {
 		start_poly_ref = 0;
@@ -85,19 +81,19 @@ void path::set_end(const float* position) {
 
 const float* path::get_next_waypoint() {
 	// We've finished traversing the path
-	if (current_waypoint_id >= path_waypoints_count - 1) {
+	if (current_waypoint_id > path_waypoints_count - 1) {
 		return nullptr;
 	}
 
 	float goal[3];
-	goal[0] = path_waypoints[current_waypoint_id];
-	goal[1] = path_waypoints[current_waypoint_id + 1];
-	goal[2] = path_waypoints[current_waypoint_id + 2];
+	goal[0] = path_waypoints[3 * current_waypoint_id];
+	goal[1] = path_waypoints[3 * current_waypoint_id + 1];
+	goal[2] = path_waypoints[3 * current_waypoint_id + 2];
 	return goal;
 }
 
 void path::increment_waypoint() {
-	if (current_waypoint_id >= path_waypoints_count - 1) {
+	if (current_waypoint_id > path_waypoints_count - 1) {
 		return;
 	}
 
