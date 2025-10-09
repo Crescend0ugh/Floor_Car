@@ -62,7 +62,6 @@ private:
     void cleanup();
 
     void build_tile(const float* position);
-    void get_tile_pos(const float* position, int& tx, int& ty);
     void remove_tile(const float* position);
     void build_all_tiles();
     void remove_all_tiles();
@@ -74,6 +73,8 @@ public:
 
     bool build();
     void on_mesh_changed(InputGeom* new_geometry);
+    void get_tile_pos(const float* position, int& tx, int& ty);
+
     navcontext* get_context() { return context; };
     dtNavMesh* get_navmesh_internal() { return navmesh_internal; };
     dtNavMeshQuery* get_nav_query() { return nav_query; };

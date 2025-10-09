@@ -55,4 +55,5 @@ public:
 	int get_waypoint_count() { return path_waypoints_count; };
 	const float* get_next_waypoint(); // Can return a vector3
 	void increment_waypoint();
+	const float* get_waypoint_from_id(int id);
 };

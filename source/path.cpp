@@ -67,19 +67,22 @@ void path::recalculate()
 	}
 }
 
-void path::set_start(const float* position) {
+void path::set_start(const float* position) 
+{
 	rcVcopy(start_pos, position);
 	is_start_pos_set = true;
 	recalculate();
 }
 
-void path::set_end(const float* position) {
+void path::set_end(const float* position) 
+{
 	rcVcopy(end_pos, position);
 	is_end_pos_set = true;
 	recalculate();
 }
 
-const float* path::get_next_waypoint() {
+const float* path::get_next_waypoint() 
+{
 	// We've finished traversing the path
 	if (current_waypoint_id > path_waypoints_count - 1) {
 		return nullptr;
@@ -92,7 +95,8 @@ const float* path::get_next_waypoint() {
 	return goal;
 }
 
-void path::increment_waypoint() {
+void path::increment_waypoint()
+{
 	if (current_waypoint_id > path_waypoints_count - 1) {
 		return;
 	}
@@ -110,4 +114,18 @@ void path::reset()
 
 	is_start_pos_set = false;
 	is_end_pos_set = false;
+}
+
+const float* path::get_waypoint_from_id(int id) 
+{
+	if (id > path_waypoints_count - 1) {
+		return nullptr;
+	}
+
+	float waypoint[3];
+	waypoint[0] = path_waypoints[3 * id];
+	waypoint[1] = path_waypoints[3 * id + 1];
+	waypoint[2] = path_waypoints[3 * id + 2];
+
+	return waypoint;
 }
