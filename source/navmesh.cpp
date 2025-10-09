@@ -37,23 +37,14 @@ navmesh::navmesh(agent_params *params)
 	config.ch = params->cell_height;
 	config.walkableSlopeAngle = params->max_slope;
 
-	config.walkableHeight = (int)ceilf(params->agent_height / config.ch);
+	config.walkableHeight = (int)ceilf(params->height / config.ch);
 	config.walkableClimb = (int)ceilf(params->max_climb / config.ch);
-
-	config.walkableRadius = (int)ceilf(params->agent_radius / config.cs);
-	config.borderSize = config.walkableRadius + 3;
-
+	config.walkableRadius = (int)ceilf(params->radius / config.cs);
 	config.maxEdgeLen = config.walkableRadius * 8;
 	config.maxSimplificationError = params->edge_max_error;
 
 	config.minRegionArea = rcSqr(8.0f);
 	config.mergeRegionArea = rcSqr(20.0f);
-
-	config.maxVertsPerPoly = 6.0f;
-
-	// To be tuned
-	config.detailSampleDist = 6.0f;
-	config.detailSampleMaxError = 1.0f;
 }
 
 navmesh::~navmesh() 
@@ -199,6 +190,8 @@ void navmesh::build_tile(const float* position)
 		dtStatus status = navmesh_internal->addTile(data, data_size, DT_TILE_FREE_DATA, 0, 0);
 		if (dtStatusFailed(status))
 			dtFree(data);
+
+		fprintf(stdout, "built tile %d %d \n", tx, ty);
 	}
 }
 
@@ -312,9 +305,13 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 
 
 	// TODO: Adjust these as needed. Also, most of these should be set in the constructor, probably.
+	config.maxVertsPerPoly = 6.0f;
 	config.tileSize = tile_size;
+	config.borderSize = config.walkableRadius + 3;
 	config.width = config.tileSize + config.borderSize * 2;
 	config.height = config.tileSize + config.borderSize * 2;
+	config.detailSampleDist = 6.0f;
+	config.detailSampleMaxError = 1.0f;
 
 	rcVcopy(config.bmin, bmin);
 	rcVcopy(config.bmax, bmax);
@@ -437,7 +434,7 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 	// Test: Monotone
 
 	// Partition the walkable surface into simple regions without holes.
-	// Monotone partitioning does not need distancefield.
+		// Monotone partitioning does not need distancefield.
 	if (!rcBuildRegionsMonotone(context, *compact_height_field, config.borderSize, config.minRegionArea, config.mergeRegionArea))
 	{
 		context->log(RC_LOG_ERROR, "navmesh::build_tile_mesh: Could not build monotone regions.");
@@ -533,7 +530,13 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 		params.detailVertsCount = poly_mesh_detail->nverts;
 		params.detailTris = poly_mesh_detail->tris;
 		params.detailTriCount = poly_mesh_detail->ntris;
-		// Removed off mesh connections
+		params.offMeshConVerts = geometry->getOffMeshConnectionVerts();
+		params.offMeshConRad = geometry->getOffMeshConnectionRads();
+		params.offMeshConDir = geometry->getOffMeshConnectionDirs();
+		params.offMeshConAreas = geometry->getOffMeshConnectionAreas();
+		params.offMeshConFlags = geometry->getOffMeshConnectionFlags();
+		params.offMeshConUserID = geometry->getOffMeshConnectionId();
+		params.offMeshConCount = geometry->getOffMeshConnectionCount();
 		params.walkableHeight = config.walkableHeight * config.ch;
 		params.walkableRadius = config.walkableRadius;
 		params.walkableClimb = config.walkableClimb;

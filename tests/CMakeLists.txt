@@ -1,2 +1,4 @@
 add_subdirectory(math_test)
 add_subdirectory(navmesh_test)
+add_subdirectory(pcd_test)
+add_subdirectory(raylib_test)
