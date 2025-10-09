@@ -7,7 +7,7 @@
 
 void test_pcd()
 {
-    std::vector<maid::vector3d> positions = load_points("../../../content/point_clouds/test_pcd.pcd");
+    std::vector<maid::vector3d> positions = load_points("../../../../../content/point_clouds/test_pcd.pcd");
     const int screenWidth = 800;
     const int screenHeight = 450;
 
