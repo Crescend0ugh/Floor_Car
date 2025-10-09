@@ -171,7 +171,7 @@ int main()
     navcontext* context = nmesh->get_context();
     InputGeom* geometry = new InputGeom();
 
-    geometry->load(context, "../../../../../content/meshes/dungeon.obj");
+    geometry->load(context, "../../../../content/meshes/dungeon.obj");
     context->dump_log("Geometry log:");
 
     nmesh->on_mesh_changed(geometry);
@@ -214,7 +214,7 @@ int main()
     //actual_mesh.indices = (unsigned short*)geometry->getMesh()->getTris();
     //actual_mesh.triangleCount = geometry->getMesh()->getTriCount();
     //UploadMesh(&actual_mesh, false);
-    Model model = LoadModel("../../../../../content/meshes/dungeon.obj");
+    Model model = LoadModel("../../../../content/meshes/dungeon.obj");
 
     while (!WindowShouldClose())
     {
