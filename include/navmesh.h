@@ -7,16 +7,30 @@
 
 #include "navcontext.h"
 
+
+// Default values for all fields but edge_max_error were chosen arbitrarily and should definitely be set!
 struct agent_params 
 {
-    float radius;
-    float height;
-    float max_slope; // Maximum slope angle we can move up
-    float max_climb = 0.0f; // Maximum height of obstacles we can step up (probably 0?)
-    float edge_max_error = 1.3f; // Suggested by Docs
+    // If the agent were a circle, this would be its radius, in voxels
+    float agent_radius = 0.25f;
 
-    float cell_size;
-    float cell_height;
+    // In voxels
+    float agent_height = 0.25f;
+
+    // Maximum slope angle (0, 90 deg) we can move up
+    float max_slope = 0.0f; 
+
+    // Maximum height of obstacles we can step over (probably 0?)
+    float max_climb = 0.0f;
+
+    // x and z size of each cell, in world units (NEEDS TUNING)
+    float cell_size = 20.0f;
+
+    // y height of each cell, in world units (NEEDS TUNING)
+    float cell_height = 10.0f;
+
+    // Suggested by Docs
+    float edge_max_error = 1.3f;
 };
 
 class navmesh 
