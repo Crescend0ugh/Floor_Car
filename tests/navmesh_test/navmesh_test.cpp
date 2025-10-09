@@ -7,15 +7,15 @@ int main() {
     agent_params params;
     params.cell_height = 0.2f;
     params.cell_size = 0.3f;
-    params.height = 1.0f;
-    params.radius = 0.5f;
+    params.agent_height = 1.0f;
+    params.agent_radius = 0.5f;
     params.max_slope = 20.0f;
 
     navmesh* mesh = new navmesh(&params);
     navcontext* context = mesh->get_context();
     InputGeom* geometry = new InputGeom();
 
-    geometry->load(context, "../../../../../tests/meshes/dungeon.obj");
+    geometry->load(context, "../../../../../content/meshes/dungeon.obj");
     context->dump_log("Geometry log:");
 
     mesh->on_mesh_changed(geometry);
@@ -37,12 +37,11 @@ int main() {
     fprintf(stdout, "path points: %d\n", p->get_waypoint_count());
     for (int i = 0; i < p->get_waypoint_count(); ++i) {
         const float* next_position = p->get_next_waypoint();
-        if (next_position) {
-            fprintf(stdout, "position %d: [%f, %f, %f]\n", i, next_position[0], next_position[1], next_position[2]);
-        }
-  
+
+        fprintf(stdout, "position %d: [%f, %f, %f]\n", i, next_position[0], next_position[1], next_position[2]);
+
         p->increment_waypoint();
     }
 
-	return 0;
+    return 0;
 }

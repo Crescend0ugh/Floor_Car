@@ -7,19 +7,33 @@
 
 #include "navcontext.h"
 
-struct agent_params 
-{
-    float radius;
-    float height;
-    float max_slope; // Maximum slope angle we can move up
-    float max_climb = 0.0f; // Maximum height of obstacles we can step up (probably 0?)
-    float edge_max_error = 1.3f; // Suggested by Docs
 
-    float cell_size;
-    float cell_height;
+// Default values for all fields but edge_max_error were chosen arbitrarily and should definitely be set!
+struct agent_params
+{
+    // If the agent were a circle, this would be its radius, in voxels
+    float agent_radius = 0.25f;
+
+    // In voxels
+    float agent_height = 0.25f;
+
+    // Maximum slope angle (0, 90 deg) we can move up
+    float max_slope = 0.0f;
+
+    // Maximum height of obstacles we can step over (probably 0?)
+    float max_climb = 0.0f;
+
+    // x and z size of each cell, in world units (NEEDS TUNING)
+    float cell_size = 20.0f;
+
+    // y height of each cell, in world units (NEEDS TUNING)
+    float cell_height = 10.0f;
+
+    // Suggested by Docs
+    float edge_max_error = 1.3f;
 };
 
-class navmesh 
+class navmesh
 {
     rcConfig config;
     navcontext* context = nullptr;
@@ -29,7 +43,7 @@ class navmesh
     rcContourSet* contour_set = nullptr;
     rcPolyMesh* poly_mesh = nullptr;
     rcPolyMeshDetail* poly_mesh_detail = nullptr;
-    dtNavMesh* navmesh_internal  = nullptr;
+    dtNavMesh* navmesh_internal = nullptr;
     dtNavMeshQuery* nav_query = nullptr;
 
     InputGeom* geometry = nullptr;
