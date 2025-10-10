@@ -1,0 +1,193 @@
+#include <iostream>
+#include <thread>
+
+#include "asio/post.hpp"
+
+#include "network.h"
+
+using namespace network;
+
+connection::connection(tcp::socket socket):
+    socket(std::move(socket))
+{
+}
+
+void connection::start()
+{
+	read_loop();
+}
+
+void connection::send(std::string data, bool at_front = false) {
+    post(socket.get_executor(), [=] {
+    if (enqueue(std::move(data), at_front))
+        write_loop();
+    });
+}
+
+// Returns true if need to start write loop
+bool connection::enqueue(std::string data, bool at_front)
+{ 
+    at_front &= !send_queue.empty(); // no difference
+    if (at_front)
+        send_queue.insert(std::next(std::begin(send_queue)), std::move(data));
+    else
+        send_queue.push_back(std::move(data));
+
+    return send_queue.size() == 1;
+}
+
+// Returns true if more messages pending after dequeue
+bool connection::dequeue()
+{ 
+    assert(!send_queue.empty());
+    send_queue.pop_front();
+    return !send_queue.empty();
+}
+
+void connection::write_loop() {
+    asio::async_write(socket, asio::buffer(send_queue.front()), [this, self = shared_from_this()](asio::error_code error, size_t bytes_written) {
+        std::cout << "Server sent: " << bytes_written << " bytes (" << error.message() << ")" << std::endl;
+        if (!error && dequeue()) {
+            write_loop();
+        }
+    });
+}
+
+void connection::read_loop() {
+    buffer.consume(buffer.size());
+
+    asio::async_read_until(socket, buffer, "\n", [this, self = shared_from_this()](asio::error_code error, size_t bytes_read) {
+        std::cout << "Server read: " << bytes_read << " bytes (" << error.message() << ")" << std::endl;
+
+        if (!error) {
+            read_loop();
+        } 
+        else if (error == asio::error::eof) {
+            std::cout << "session terminated" << std::endl;
+            return;
+        }
+        else {
+            return;
+        }
+    });
+}
+
+server::server(asio::io_context& io_context, short port):
+    acceptor(io_context, tcp::endpoint(tcp::v4(), port))
+{
+    acceptor.set_option(tcp::acceptor::reuse_address());
+    acceptor.listen();
+    accept();
+}
+
+size_t server::register_connection(weak_connection_ptr ptr) {
+    std::lock_guard<std::mutex> lock(mutex);
+    registered_connections.push_back(ptr);
+    return registered_connections.size();
+}
+
+template <typename F>
+size_t server::for_each_active(F f) {
+    std::vector<connection_ptr> active;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+
+        for (auto& w : registered_connections)
+            if (auto c = w.lock())
+                active.push_back(c);
+    }
+
+    for (auto& c : active) {
+        f(*c);
+    }
+
+    return active.size();
+}
+
+void server::accept()
+{
+    acceptor.async_accept([this](asio::error_code error, tcp::socket socket) {
+        if (!error) {
+            std::cout << "creating session on: "
+                << socket.remote_endpoint().address().to_string()
+                << ":" << socket.remote_endpoint().port() << '\n';
+
+            auto session = std::make_shared<connection>(std::move(socket));
+            register_connection(session);
+            session->start();
+            accept();
+        }
+        else {
+            std::cout << "network error: " << error.message() << std::endl;
+        }
+     });
+}
+
+size_t server::send(std::string data)
+{
+    return for_each_active([data](connection& c) { c.send(data, true); });
+}
+
+client::client(asio::io_context& io_context, std::string& ip_address, short port):
+    socket(io_context)
+{
+    tcp::resolver resolver(io_context);
+    asio::connect(socket, resolver.resolve(ip_address, std::to_string(port)));
+
+    read_loop();
+}
+
+client::~client()
+{
+    disconnect();
+}
+
+void client::read_loop() {
+    buffer.consume(buffer.size());
+
+    asio::async_read_until(socket, buffer, "\n", [this](asio::error_code error, size_t bytes_read) {
+        std::cout << "Client Rx: " << bytes_read << " bytes (" << error.message() << ")" << std::endl;
+        
+        if (!error) {
+            std::string data{
+                std::istreambuf_iterator<char>(&buffer),
+                std::istreambuf_iterator<char>()
+            };
+            read_queue.push_back(data);
+            read_loop();
+        }
+        else if (error == asio::error::eof) {
+            std::cout << "server terminated" << std::endl;
+        }
+        else {
+            std::cout << "read error: " << error.message() << std::endl;
+        }
+    });
+}
+
+void client::send(std::string data)
+{
+    asio::async_write(socket, asio::buffer(data), [this](asio::error_code error, size_t bytes_written) {
+        std::cout << "Client sent: " << bytes_written << " bytes (" << error.message() << ")" << std::endl;
+    });
+}
+
+// Similar to SDL's polling
+bool client::poll(std::string& target)
+{
+    if (read_queue.empty()) {
+        return false;
+    }
+
+    target = read_queue.back();
+    read_queue.pop_back();
+
+    return true;
+}
+
+void client::disconnect()
+{
+    asio::error_code error; // This error doesn't matter
+    socket.shutdown(tcp::socket::shutdown_both, error);
+    socket.close();
+}
