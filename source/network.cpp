@@ -5,6 +5,8 @@
 
 #include "network.h"
 
+#define LOG 0
+
 using namespace network;
 
 connection::connection(tcp::socket socket):
@@ -17,7 +19,8 @@ void connection::start()
 	read_loop();
 }
 
-void connection::send(std::string data, bool at_front = false) {
+void connection::send(bytes data, bool at_front = false)
+{
     post(socket.get_executor(), [=] {
     if (enqueue(std::move(data), at_front))
         write_loop();
@@ -25,7 +28,7 @@ void connection::send(std::string data, bool at_front = false) {
 }
 
 // Returns true if need to start write loop
-bool connection::enqueue(std::string data, bool at_front)
+bool connection::enqueue(bytes data, bool at_front)
 { 
     at_front &= !send_queue.empty(); // no difference
     if (at_front)
@@ -44,20 +47,26 @@ bool connection::dequeue()
     return !send_queue.empty();
 }
 
-void connection::write_loop() {
+void connection::write_loop()
+{
     asio::async_write(socket, asio::buffer(send_queue.front()), [this, self = shared_from_this()](asio::error_code error, size_t bytes_written) {
+#if LOG
         std::cout << "Server sent: " << bytes_written << " bytes (" << error.message() << ")" << std::endl;
+#endif
         if (!error && dequeue()) {
             write_loop();
         }
     });
 }
 
-void connection::read_loop() {
+void connection::read_loop()
+{
     buffer.consume(buffer.size());
 
     asio::async_read_until(socket, buffer, "\n", [this, self = shared_from_this()](asio::error_code error, size_t bytes_read) {
+#if LOG
         std::cout << "Server read: " << bytes_read << " bytes (" << error.message() << ")" << std::endl;
+#endif
 
         if (!error) {
             read_loop();
@@ -72,7 +81,7 @@ void connection::read_loop() {
     });
 }
 
-server::server(asio::io_context& io_context, short port):
+server::server(asio::io_context& io_context, short port) :
     acceptor(io_context, tcp::endpoint(tcp::v4(), port))
 {
     acceptor.set_option(tcp::acceptor::reuse_address());
@@ -80,14 +89,16 @@ server::server(asio::io_context& io_context, short port):
     accept();
 }
 
-size_t server::register_connection(weak_connection_ptr ptr) {
+size_t server::register_connection(weak_connection_ptr ptr) 
+{
     std::lock_guard<std::mutex> lock(mutex);
     registered_connections.push_back(ptr);
     return registered_connections.size();
 }
 
 template <typename F>
-size_t server::for_each_active(F f) {
+size_t server::for_each_active(F f) 
+{
     std::vector<connection_ptr> active;
     {
         std::lock_guard<std::mutex> lock(mutex);
@@ -108,9 +119,11 @@ void server::accept()
 {
     acceptor.async_accept([this](asio::error_code error, tcp::socket socket) {
         if (!error) {
+#if LOG
             std::cout << "creating session on: "
                 << socket.remote_endpoint().address().to_string()
                 << ":" << socket.remote_endpoint().port() << '\n';
+#endif
 
             auto session = std::make_shared<connection>(std::move(socket));
             register_connection(session);
@@ -123,8 +136,9 @@ void server::accept()
      });
 }
 
-size_t server::send(std::string data)
+size_t server::send_bytes(bytes data)
 {
+    data.push_back((std::byte)'\n');
     return for_each_active([data](connection& c) { c.send(data, true); });
 }
 
@@ -142,17 +156,19 @@ client::~client()
     disconnect();
 }
 
-void client::read_loop() {
+void client::read_loop()
+{
     buffer.consume(buffer.size());
 
     asio::async_read_until(socket, buffer, "\n", [this](asio::error_code error, size_t bytes_read) {
-        std::cout << "Client Rx: " << bytes_read << " bytes (" << error.message() << ")" << std::endl;
+#if LOG
+        std::cout << "Client read: " << bytes_read << " bytes (" << error.message() << ")" << std::endl;
+#endif
         
         if (!error) {
-            std::string data{
-                std::istreambuf_iterator<char>(&buffer),
-                std::istreambuf_iterator<char>()
-            };
+            bytes data(buffer.size());
+            asio::buffer_copy(asio::buffer(data), buffer.data());
+
             read_queue.push_back(data);
             read_loop();
         }
@@ -165,24 +181,14 @@ void client::read_loop() {
     });
 }
 
-void client::send(std::string data)
+void client::send_bytes(bytes data)
 {
+    data.push_back((std::byte)'\n');
     asio::async_write(socket, asio::buffer(data), [this](asio::error_code error, size_t bytes_written) {
+#if LOG
         std::cout << "Client sent: " << bytes_written << " bytes (" << error.message() << ")" << std::endl;
+#endif
     });
-}
-
-// Similar to SDL's polling
-bool client::poll(std::string& target)
-{
-    if (read_queue.empty()) {
-        return false;
-    }
-
-    target = read_queue.back();
-    read_queue.pop_back();
-
-    return true;
 }
 
 void client::disconnect()
@@ -190,4 +196,17 @@ void client::disconnect()
     asio::error_code error; // This error doesn't matter
     socket.shutdown(tcp::socket::shutdown_both, error);
     socket.close();
+}
+
+bool client::poll(received_data& data)
+{
+    if (read_queue.empty()) {
+        return false;
+    }
+
+    data.serialized_data = read_queue.back();
+    data.protocol_id = static_cast<int>(data.serialized_data[0]);
+    read_queue.pop_back();
+
+    return true;
 }

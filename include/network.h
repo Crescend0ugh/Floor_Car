@@ -5,19 +5,28 @@
 #include <list>
 
 #include "asio.hpp"
+#include "zpp_bits.h"
 
 using asio::ip::tcp;
 
 namespace network
 {
+	using bytes = std::vector<std::byte>;
+
+	struct received_data
+	{
+		int protocol_id;
+		bytes serialized_data;
+	};
+
 	class connection : public std::enable_shared_from_this<connection>
 	{
 	private:
 		tcp::socket socket;
 		asio::streambuf buffer;
-		std::list<std::string> send_queue;
+		std::list<bytes> send_queue;
 
-		bool enqueue(std::string data, bool at_front);
+		bool enqueue(bytes data, bool at_front);
 		bool dequeue();
 		void write_loop();
 		void read_loop();
@@ -25,7 +34,7 @@ namespace network
 		connection(tcp::socket socket);
 		void start();
 
-		void send(std::string data, bool at_front);
+		void send(bytes data, bool at_front);
 	};
 
 	class server
@@ -46,10 +55,19 @@ namespace network
 		size_t for_each_active(F f);
 
 		void accept();
+		size_t send_bytes(bytes data);
 
 	public:
 		server(asio::io_context& io_context, short port);
-		size_t send(std::string data);
+
+		// Anything with auto in parameters needs to be in the header...
+		size_t send(int protocol, auto data)
+		{
+			auto [serialized, out] = zpp::bits::data_out();
+			out(protocol).or_throw();
+			out(data).or_throw();
+			return send_bytes(serialized);
+		}
 	};
 
 	class client
@@ -57,16 +75,36 @@ namespace network
 	private:
 		tcp::socket socket;
 		asio::streambuf buffer;
-		std::list<std::string> read_queue;
+		std::list<bytes> read_queue;
 
 		void read_loop();
+		void send_bytes(bytes data);
 
 	public:
 		client(asio::io_context& io_context, std::string& ip_address, short port);
 		~client();
 
-		void send(std::string data);
-		bool poll(std::string& target);
 		void disconnect();
+
+		bool poll(received_data& data);
+
+		void send(int protocol, auto data)
+		{
+			auto [serialized, out] = zpp::bits::data_out();
+			out(protocol).or_throw();
+			out(data).or_throw();
+			send_bytes(serialized);
+		}
+
 	};
+
+	void deserialize(auto& target, received_data& data)
+	{
+		zpp::bits::in in(data.serialized_data);
+
+		int protocol_id = 0;
+		in(protocol_id);
+
+		in(target);
+	}
 };
