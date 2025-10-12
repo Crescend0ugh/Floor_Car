@@ -8,3 +8,6 @@ add_subdirectory(recastnavigation/RecastDemo)
 
 # Raylib
 add_subdirectory(raylib) 
+
+# ncnn
+add_subdirectory(ncnn)

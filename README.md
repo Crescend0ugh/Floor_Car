@@ -8,7 +8,9 @@ This repository contains the code used for the prototype.
 - [raylib](https://www.raylib.com/): 3D rendering and visualization for testing
 - [asio (standalone)](https://github.com/chriskohlhoff/asio): Socket networking and asynchronous I/O
 - [zpp_bits](https://github.com/eyalz800/zpp_bits): Binary serialization for networking
-- [OpenCV](https://opencv.org/): Computer vision, for object detection and stereo calibration
+- [OpenCV](https://opencv.org/): Computer vision, object detection and stereo calibration
+	- [Ultralytics YOLO11](https://docs.ultralytics.com/models/yolo11/): Object detection model
+	- [ncnn](https://github.com/Tencent/ncnn): Lightweight neural network inference with good performance on Raspberry Pi
 
 ## Installing OpenCV (Windows)
 OpenCV is not included directly in the repository. Building from its source increases build times dramatically, 
@@ -23,5 +25,5 @@ Then, edit your system PATH by adding `C:\opencv\build\x64\vc16\bin` and `C:\ope
 
 You should now be able to build the project. If not, restart your IDE. If that doesn't work (or you aren't using one), restart your computer.
 
-If your OpenCV 4.12.0 lives elsewhere, you must edit both the root and tests `CMakeLists.txt`:
-Change the path in `set(OpenCV_DIR "C:/opencv/build")` to your path to OpenCV.
+If your OpenCV 4.12.0 lives elsewhere, you must edit both the root and tests `CMakeLists.txt` by changing
+the path in the line `set(OpenCV_DIR "C:/opencv/build")` to your OpenCV path.
