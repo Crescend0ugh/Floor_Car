@@ -6,6 +6,8 @@ cmake_minimum_required(VERSION 3.28)
 project(Floor_Car)
 
 set(CMAKE_CXX_STANDARD 20)
+set(OpenCV_DIR "C:/opencv/build")
+find_package(OpenCV REQUIRED)
 
 add_subdirectory(third_party)
 add_subdirectory(tests)

@@ -8,3 +8,20 @@ This repository contains the code used for the prototype.
 - [raylib](https://www.raylib.com/): 3D rendering and visualization for testing
 - [asio (standalone)](https://github.com/chriskohlhoff/asio): Socket networking and asynchronous I/O
 - [zpp_bits](https://github.com/eyalz800/zpp_bits): Binary serialization for networking
+- [OpenCV](https://opencv.org/): Computer vision, for object detection and stereo calibration
+
+## Installing OpenCV (Windows)
+OpenCV is not included directly in the repository. Building from its source increases build times dramatically, 
+and since GitHub doesn't like sending large files over the network, including the static/dynamic libraries is not an option either.
+
+Unfortunately, the only option left is to install OpenCV yourself.
+
+To do this, head to https://opencv.org/releases/ and download the Windows installer for version 4.12.0.
+Run the installer and extract OpenCV to `C:`.
+
+Then, edit your system PATH by adding `C:\opencv\build\x64\vc16\bin` and `C:\opencv\build\x64\vc16\lib`.
+
+You should now be able to build the project. If not, restart your IDE. If that doesn't work (or you aren't using one), restart your computer.
+
+If your OpenCV 4.12.0 lives elsewhere, you must edit both the root and tests `CMakeLists.txt`:
+Change the path in `set(OpenCV_DIR "C:/opencv/build")` to your path to OpenCV.
