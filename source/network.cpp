@@ -1,6 +1,5 @@
 #include <iostream>
 #include <thread>
-
 #include "asio/post.hpp"
 
 #include "network.h"
