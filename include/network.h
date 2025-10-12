@@ -25,16 +25,20 @@ namespace network
 		tcp::socket socket;
 		asio::streambuf buffer;
 		std::list<bytes> send_queue;
+		std::list<bytes> read_queue;
 
 		bool enqueue(bytes data, bool at_front);
 		bool dequeue();
 		void write_loop();
 		void read_loop();
+		
 	public:
 		connection(tcp::socket socket);
 		void start();
 
+		void pop_read_queue(received_data& data);
 		void send(bytes data, bool at_front);
+		std::list<bytes> get_read_queue() { return read_queue; };
 	};
 
 	class server
@@ -60,6 +64,8 @@ namespace network
 	public:
 		server(asio::io_context& io_context, short port);
 
+		bool poll(received_data& data);
+
 		// Anything with auto in parameters needs to be in the header...
 		size_t send(int protocol, auto data)
 		{
@@ -75,9 +81,14 @@ namespace network
 	private:
 		tcp::socket socket;
 		asio::streambuf buffer;
+		std::list<bytes> send_queue;
 		std::list<bytes> read_queue;
 
+		bool enqueue(bytes data, bool at_front);
+		bool dequeue();
+		void write_loop();
 		void read_loop();
+
 		void send_bytes(bytes data);
 
 	public:

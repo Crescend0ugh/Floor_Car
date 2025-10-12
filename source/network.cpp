@@ -69,6 +69,10 @@ void connection::read_loop()
 #endif
 
         if (!error) {
+            bytes data(buffer.size());
+            asio::buffer_copy(asio::buffer(data), buffer.data());
+
+            read_queue.push_back(data);
             read_loop();
         } 
         else if (error == asio::error::eof) {
@@ -79,6 +83,14 @@ void connection::read_loop()
             return;
         }
     });
+}
+
+void connection::pop_read_queue(received_data& data)
+{
+    bytes received = std::move(read_queue.front());
+    data.serialized_data = received;
+    data.protocol_id = static_cast<int>(data.serialized_data[0]);
+    read_queue.pop_front();
 }
 
 server::server(asio::io_context& io_context, short port) :
@@ -142,6 +154,32 @@ size_t server::send_bytes(bytes data)
     return for_each_active([data](connection& c) { c.send(data, true); });
 }
 
+bool server::poll(received_data& data)
+{
+    std::vector<connection_ptr> active;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+
+        for (auto& w : registered_connections)
+            if (auto c = w.lock())
+                active.push_back(c);
+    }
+
+    std::list<bytes>* active_read_queue = nullptr;
+
+    for (auto& c : active) {
+        std::list<bytes> read_queue = c->get_read_queue();
+        if (read_queue.empty()) {
+            continue;
+        }
+
+        c->pop_read_queue(data);
+        return true;
+    }
+
+    return false;
+}
+
 client::client(asio::io_context& io_context, std::string& ip_address, short port):
     socket(io_context)
 {
@@ -164,7 +202,7 @@ void client::read_loop()
 #if LOG
         std::cout << "Client read: " << bytes_read << " bytes (" << error.message() << ")" << std::endl;
 #endif
-        
+
         if (!error) {
             bytes data(buffer.size());
             asio::buffer_copy(asio::buffer(data), buffer.data());
@@ -181,13 +219,41 @@ void client::read_loop()
     });
 }
 
+// Returns true if need to start write loop
+bool client::enqueue(bytes data, bool at_front)
+{
+    at_front &= !send_queue.empty(); // no difference
+    if (at_front)
+        send_queue.insert(std::next(std::begin(send_queue)), std::move(data));
+    else
+        send_queue.push_back(std::move(data));
+
+    return send_queue.size() == 1;
+}
+
+// Returns true if more messages pending after dequeue
+bool client::dequeue()
+{
+    assert(!send_queue.empty());
+    send_queue.pop_front();
+    return !send_queue.empty();
+}
+
+void client::write_loop()
+{
+    asio::async_write(socket, asio::buffer(send_queue.front()), [this](asio::error_code error, size_t bytes_written) {
+        if (!error && dequeue()) {
+            write_loop();
+        }
+    });
+}
+
 void client::send_bytes(bytes data)
 {
     data.push_back((std::byte)'\n');
-    asio::async_write(socket, asio::buffer(data), [this](asio::error_code error, size_t bytes_written) {
-#if LOG
-        std::cout << "Client sent: " << bytes_written << " bytes (" << error.message() << ")" << std::endl;
-#endif
+    post(socket.get_executor(), [=] {
+        if (enqueue(std::move(data), true))
+            write_loop();
     });
 }
 
@@ -204,9 +270,10 @@ bool client::poll(received_data& data)
         return false;
     }
 
-    data.serialized_data = read_queue.back();
+    bytes received = std::move(read_queue.front());
+    data.serialized_data = received;
     data.protocol_id = static_cast<int>(data.serialized_data[0]);
-    read_queue.pop_back();
+    read_queue.pop_front();
 
     return true;
 }
