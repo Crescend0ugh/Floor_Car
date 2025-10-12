@@ -27,7 +27,10 @@ set(TEST_SUBDIRECTORIES
 	opencv_test
 )
 
-set(OpenCV_DIR "C:/opencv/build")
+if(WIN32)
+	set(OpenCV_DIR "C:/opencv/build")
+endif()
+
 find_package(OpenCV REQUIRED)
 
 foreach(SUBDIRECTORY IN LISTS TEST_SUBDIRECTORIES)
@@ -43,6 +46,6 @@ foreach(SUBDIRECTORY IN LISTS TEST_SUBDIRECTORIES)
 	)
 
 	target_compile_definitions(${SUBDIRECTORY} PRIVATE ASIO_STANDALONE _WIN32_WINNT=0x601)
-	target_link_libraries(${SUBDIRECTORY} PRIVATE Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS})
+	target_link_libraries(${SUBDIRECTORY} PRIVATE Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn)
 endforeach()
  
