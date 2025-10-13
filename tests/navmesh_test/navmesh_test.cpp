@@ -171,7 +171,7 @@ int main()
     navcontext* context = nmesh->get_context();
     InputGeom* geometry = new InputGeom();
 
-    const char* path_to_mesh = "../content/meshes/dungeon.obj";
+    const char* path_to_mesh = "content/meshes/dungeon.obj";
 
     geometry->load(context, path_to_mesh);
     context->dump_log("Geometry log:");

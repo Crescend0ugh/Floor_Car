@@ -1,23 +1,3 @@
-file(GLOB_RECURSE
-    CONTENT_FILES
-    RELATIVE ${CMAKE_SOURCE_DIR} 
-    CONFIGURE_DEPENDS
-
-    ${CMAKE_SOURCE_DIR}/content/*
-)
-
-foreach(CONTENT_FILE ${CONTENT_FILES})
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${CONTENT_FILE}
-        COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_SOURCE_DIR}/${CONTENT_FILE}
-            ${CMAKE_CURRENT_BINARY_DIR}/${CONTENT_FILE}
-        DEPENDS ${CMAKE_SOURCE_DIR}/${CONTENT_FILE}
-	)
-endforeach()
-
-list(TRANSFORM CONTENT_FILES PREPEND ${CMAKE_CURRENT_BINARY_DIR}/)
-
 set(TEST_SUBDIRECTORIES 
 	math_test 
 	navmesh_test
@@ -39,6 +19,11 @@ foreach(SUBDIRECTORY IN LISTS TEST_SUBDIRECTORIES)
 	list(APPEND TEST_SOURCES ${SUBDIRECTORY}/${SUBDIRECTORY}.cpp)
 
 	add_executable(${SUBDIRECTORY} ${TEST_SOURCES})
+	
+	add_custom_command(TARGET ${SUBDIRECTORY} POST_BUILD
+                   COMMAND ${CMAKE_COMMAND} -E copy_directory
+                       ${CMAKE_SOURCE_DIR}/content/ $<TARGET_FILE_DIR:${SUBDIRECTORY}>/content)
+
 	target_include_directories(${SUBDIRECTORY} PRIVATE 
 		${CMAKE_SOURCE_DIR}/include 
 		${CMAKE_SOURCE_DIR}/third_party/asio/include 
