@@ -1,143 +1,210 @@
-#include <fstream>
-#include <chrono>
-
-#include "opencv2/opencv.hpp"
+#include "layer.h"
 #include "net.h"
 
-struct detection
+#include "opencv2/opencv.hpp"
+
+#include <float.h>
+#include <stdio.h>
+#include <vector>
+#include <iostream>
+
+#define MAX_STRIDE 32
+
+struct Object
 {
-	int class_id;
-	float confidence;
-	cv::Rect rectangle;
+	cv::Rect_<float> rect;
+	int label;
+	float prob;
 };
 
-// Normally, YOLO uses 640x640. But since we're running on a Pi, halving each dimension is likely necessary for performance
-const float target_size = 320.0;
-const float score_threshold = 0.5;
-const float nms_threshold = 0.4;
-const float confidence_threshold = 0.25;
-
-class object_detector
+static float softmax(
+	const float* src,
+	float* dst,
+	int length
+)
 {
-private:
-	ncnn::Net model;
-	static void quick_sort_descent_inplace(std::vector<detection>& detections, int left, int right);
-	static void quick_sort_descent_inplace(std::vector<detection>& detections);
-	static inline float intersection_area(const detection& a, const detection& b);
-	static void nms_sorted_bboxes(const std::vector<detection>& detections, std::vector<int>& picked, float nms_threshold, bool agnostic = false);
-
-public:
-	object_detector();
-	~object_detector();
-	void detect(const cv::Mat& input, std::vector<detection>& detection);
-};
-
-void object_detector::quick_sort_descent_inplace(std::vector<detection>& detections, int left, int right)
-{
-	int i = left;
-	int j = right;
-	float p = detections[(left + right) / 2].confidence;
-
-	while (i <= j)
+	float alpha = -FLT_MAX;
+	for (int c = 0; c < length; c++)
 	{
-		while (detections[i].confidence > p)
-			i++;
-
-		while (detections[j].confidence < p)
-			j--;
-
-		if (i <= j)
+		float score = src[c];
+		if (score > alpha)
 		{
-			// swap
-			std::swap(detections[i], detections[j]);
-
-			i++;
-			j--;
+			alpha = score;
 		}
 	}
 
-#pragma omp parallel sections
+	float denominator = 0;
+	float dis_sum = 0;
+	for (int i = 0; i < length; ++i)
 	{
-#pragma omp section
+		dst[i] = expf(src[i] - alpha);
+		denominator += dst[i];
+	}
+	for (int i = 0; i < length; ++i)
+	{
+		dst[i] /= denominator;
+		dis_sum += i * dst[i];
+	}
+	return dis_sum;
+}
+static float clamp(
+	float val,
+	float min = 0.f,
+	float max = 1280.f
+)
+{
+	return val > min ? (val < max ? val : max) : min;
+}
+static void non_max_suppression(
+	std::vector<Object>& proposals,
+	std::vector<Object>& results,
+	int orin_h,
+	int orin_w,
+	float dh = 0,
+	float dw = 0,
+	float ratio_h = 1.0f,
+	float ratio_w = 1.0f,
+	float conf_thres = 0.25f,
+	float iou_thres = 0.65f
+)
+{
+	results.clear();
+	std::vector<cv::Rect> bboxes;
+	std::vector<float> scores;
+	std::vector<int> labels;
+	std::vector<int> indices;
+
+	for (auto& pro : proposals)
+	{
+		bboxes.push_back(pro.rect);
+		scores.push_back(pro.prob);
+		labels.push_back(pro.label);
+	}
+
+	cv::dnn::NMSBoxes(
+		bboxes,
+		scores,
+		conf_thres,
+		iou_thres,
+		indices
+	);
+
+	for (auto i : indices)
+	{
+		auto& bbox = bboxes[i];
+		float x0 = bbox.x;
+		float y0 = bbox.y;
+		float x1 = bbox.x + bbox.width;
+		float y1 = bbox.y + bbox.height;
+		float& score = scores[i];
+		int& label = labels[i];
+
+		x0 = (x0 - dw) / ratio_w;
+		y0 = (y0 - dh) / ratio_h;
+		x1 = (x1 - dw) / ratio_w;
+		y1 = (y1 - dh) / ratio_h;
+
+		x0 = clamp(x0, 0.f, orin_w);
+		y0 = clamp(y0, 0.f, orin_h);
+		x1 = clamp(x1, 0.f, orin_w);
+		y1 = clamp(y1, 0.f, orin_h);
+
+		Object obj;
+		obj.rect.x = x0;
+		obj.rect.y = y0;
+		obj.rect.width = x1 - x0;
+		obj.rect.height = y1 - y0;
+		obj.prob = score;
+		obj.label = label;
+		results.push_back(obj);
+	}
+}
+
+static void generate_proposals(
+	int stride,
+	const ncnn::Mat& feat_blob,
+	const float prob_threshold,
+	std::vector<Object>& objects
+)
+{
+	const int reg_max = 16;
+	float dst[16];
+	const int num_w = feat_blob.w;
+	const int num_grid_y = feat_blob.c;
+	const int num_grid_x = feat_blob.h;
+
+	const int num_class = num_w - 4 * reg_max;
+
+	for (int i = 0; i < num_grid_y; i++)
+	{
+		for (int j = 0; j < num_grid_x; j++)
 		{
-			if (left < j) quick_sort_descent_inplace(detections, left, j);
-		}
-#pragma omp section
-		{
-			if (i < right) quick_sort_descent_inplace(detections, i, right);
+
+			const float* matat = feat_blob.channel(i).row(j);
+
+			int class_index = 0;
+			float class_score = -FLT_MAX;
+			for (int c = 0; c < num_class; c++)
+			{
+				float score = matat[4 * reg_max + c];
+				if (score > class_score)
+				{
+					class_index = c;
+					class_score = score;
+				}
+			}
+
+			if (class_score >= prob_threshold)
+			{
+
+				float x0 = j + 0.5f - softmax(matat, dst, 16);
+				float y0 = i + 0.5f - softmax(matat + 16, dst, 16);
+				float x1 = j + 0.5f + softmax(matat + 2 * 16, dst, 16);
+				float y1 = i + 0.5f + softmax(matat + 3 * 16, dst, 16);
+
+				x0 *= stride;
+				y0 *= stride;
+				x1 *= stride;
+				y1 *= stride;
+
+				Object obj;
+				obj.rect.x = x0;
+				obj.rect.y = y0;
+				obj.rect.width = x1 - x0;
+				obj.rect.height = y1 - y0;
+				obj.label = class_index;
+				obj.prob = class_score;
+				objects.push_back(obj);
+
+			}
 		}
 	}
 }
 
-void object_detector::quick_sort_descent_inplace(std::vector<detection>& detections)
+
+
+static int detect_yolov11(const cv::Mat& bgr, std::vector<Object>& objects)
 {
-	if (detections.empty())
-		return;
+	ncnn::Net yolov11;
 
-	quick_sort_descent_inplace(detections, 0, detections.size() - 1);
-}
+	yolov11.opt.use_vulkan_compute = false;
+	// yolov10.opt.use_bf16_storage = true;
 
-inline float object_detector::intersection_area(const detection& a, const detection& b)
-{
-	cv::Rect_<float> inter = a.rectangle & b.rectangle;
-	return inter.area();
-}
+	// original pretrained model from https://github.com/ultralytics/ultralytics
+	// the ncnn model https://github.com/nihui/ncnn-assets/tree/master/models
+	if (yolov11.load_param("content/models/yolo11n_ncnn_model/model.ncnn.param"))
+		exit(-1);
+	if (yolov11.load_model("content/models/yolo11n_ncnn_model/model.ncnn.bin"))
+		exit(-1);
 
-void object_detector::nms_sorted_bboxes(const std::vector<detection>& detections, std::vector<int>& picked, float nms_threshold, bool agnostic)
-{
-	picked.clear();
+	const int target_size = 640;
+	const float prob_threshold = 0.25f;
+	const float nms_threshold = 0.45f;
 
-	const int n = detections.size();
+	int img_w = bgr.cols;
+	int img_h = bgr.rows;
 
-	std::vector<float> areas(n);
-	for (int i = 0; i < n; i++)
-	{
-		areas[i] = detections[i].rectangle.area();
-	}
-
-	for (int i = 0; i < n; i++)
-	{
-		const detection& a = detections[i];
-
-		int keep = 1;
-		for (int j = 0; j < (int)picked.size(); j++)
-		{
-			const detection& b = detections[picked[j]];
-
-			if (!agnostic && a.class_id != b.class_id)
-				continue;
-
-			// intersection over union
-			float inter_area = intersection_area(a, b);
-			float union_area = areas[i] + areas[picked[j]] - inter_area;
-			// float IoU = inter_area / union_area
-			if (inter_area / union_area > nms_threshold)
-				keep = 0;
-		}
-
-		if (keep)
-			picked.push_back(i);
-	}
-}
-
-object_detector::object_detector()
-{
-	model.load_param("content/models/yolo11n_ncnn_model/model.ncnn.param");
-	model.load_model("content/models/yolo11n_ncnn_model/model.ncnn.bin");
-}
-
-object_detector::~object_detector()
-{
-	model.clear();
-}
-
-void object_detector::detect(const cv::Mat& input, std::vector<detection>& detections)
-{
-	// load image, resize and pad to 640x640
-	const int img_w = input.cols;
-	const int img_h = input.rows;
-
-	// solve resize scale
+	// letterbox pad to multiple of MAX_STRIDE
 	int w = img_w;
 	int h = img_h;
 	float scale = 1.f;
@@ -154,147 +221,140 @@ void object_detector::detect(const cv::Mat& input, std::vector<detection>& detec
 		w = w * scale;
 	}
 
-	// construct ncnn::Mat from image pixel data, swap order from bgr to rgb
-	ncnn::Mat in = ncnn::Mat::from_pixels_resize(input.data, ncnn::Mat::PIXEL_BGR2RGB, img_w, img_h, w, h);
+	ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR2RGB, img_w, img_h, w, h);
 
 	// pad to target_size rectangle
-	const int wpad = target_size - w;
-	const int hpad = target_size - h;
+	// ultralytics/yolo/data/dataloaders/v5augmentations.py letterbox
+	// int wpad = (w + MAX_STRIDE - 1) / MAX_STRIDE * MAX_STRIDE - w;
+	// int hpad = (h + MAX_STRIDE - 1) / MAX_STRIDE * MAX_STRIDE - h;
+
+	int wpad = target_size - w;
+	int hpad = target_size - h;
+
+	int top = hpad / 2;
+	int bottom = hpad - hpad / 2;
+	int left = wpad / 2;
+	int right = wpad - wpad / 2;
 
 	ncnn::Mat in_pad;
-	ncnn::copy_make_border(in, in_pad, hpad / 2, hpad - hpad / 2, wpad / 2, wpad - wpad / 2, ncnn::BORDER_CONSTANT, 114.f);
+	ncnn::copy_make_border(in,
+		in_pad,
+		top,
+		bottom,
+		left,
+		right,
+		ncnn::BORDER_CONSTANT,
+		114.f);
 
-	// apply yolov5 pre process, that is to normalize 0~255 to 0~1
-	const float preprocess_values[3] = { 1 / 255.f, 1 / 255.f, 1 / 255.f };
-	in_pad.substract_mean_normalize(0, preprocess_values);
+	const float norm_vals[3] = { 1 / 255.f, 1 / 255.f, 1 / 255.f };
+	in_pad.substract_mean_normalize(0, norm_vals);
 
-	ncnn::Extractor extractor = model.create_extractor();
-	extractor.input("in0", in_pad);
-	ncnn::Mat out;
-	extractor.extract("out0", out);
+	ncnn::Extractor ex = yolov11.create_extractor();
 
-	std::vector<detection> proposals;
+	ex.input("in0", in_pad);
 
-	// enumerate all boxes
-	for (int i = 0; i < out.h; i++)
+	std::vector<Object> proposals;
+
+
+	// stride 8 
 	{
-		const float* ptr = out.row(i);
+		ncnn::Mat out;
+		ex.extract("out0", out);
 
-		const int num_class = 80; // CHANGE THIS !!!
+		std::vector<Object> objects8;
+		generate_proposals(8, out, prob_threshold, objects8);
 
-		const float cx = ptr[0];
-		const float cy = ptr[1];
-		const float bw = ptr[2];
-		const float bh = ptr[3];
-		const float box_score = ptr[4];
-		const float* class_scores = ptr + 5;
-
-		// find class index with the biggest class score among all classes
-		int class_index = 0;
-		float class_score = -FLT_MAX;
-		for (int j = 0; j < num_class; j++)
-		{
-			if (class_scores[j] > class_score)
-			{
-				class_score = class_scores[j];
-				class_index = j;
-			}
-		}
-
-		// combined score = box score * class score
-		float confidence = box_score * class_score;
-
-		// filter candidate boxes with combined score >= prob_threshold
-		if (confidence < confidence_threshold)
-			continue;
-
-		// transform candidate box (center-x,center-y,w,h) to (x0,y0,x1,y1)
-		float x0 = cx - bw * 0.5f;
-		float y0 = cy - bh * 0.5f;
-		float x1 = cx + bw * 0.5f;
-		float y1 = cy + bh * 0.5f;
-
-		// collect candidates
-		detection candidate;
-		candidate.rectangle.x = x0;
-		candidate.rectangle.y = y0;
-		candidate.rectangle.width = x1 - x0;
-		candidate.rectangle.height = y1 - y0;
-		candidate.class_id = class_index;
-		candidate.confidence = confidence;
-
-		proposals.push_back(candidate);
+		proposals.insert(proposals.end(), objects8.begin(), objects8.end());
 	}
 
-	// sort all candidates by score from highest to lowest
-	quick_sort_descent_inplace(proposals);
-
-	// apply non max suppression
-	std::vector<int> picked;
-	nms_sorted_bboxes(proposals, picked, nms_threshold);
-
-	// collect final result after nms
-	const int count = picked.size();
-	detections.resize(count);
-
-	for (int i = 0; i < count; i++)
+	// stride 16 
 	{
-		detections[i] = proposals[picked[i]];
+		ncnn::Mat out;
 
-		// adjust offset to original unpadded
-		float x0 = (detections[i].rectangle.x - (wpad / 2)) / scale;
-		float y0 = (detections[i].rectangle.y - (hpad / 2)) / scale;
-		float x1 = (detections[i].rectangle.x + detections[i].rectangle.width - (wpad / 2)) / scale;
-		float y1 = (detections[i].rectangle.y + detections[i].rectangle.height - (hpad / 2)) / scale;
+		ex.extract("out1", out);
 
-		// clip
-		x0 = std::max(std::min(x0, (float)(img_w - 1)), 0.f);
-		y0 = std::max(std::min(y0, (float)(img_h - 1)), 0.f);
-		x1 = std::max(std::min(x1, (float)(img_w - 1)), 0.f);
-		y1 = std::max(std::min(y1, (float)(img_h - 1)), 0.f);
+		std::vector<Object> objects16;
+		generate_proposals(16, out, prob_threshold, objects16);
 
-		detections[i].rectangle.x = x0;
-		detections[i].rectangle.y = y0;
-		detections[i].rectangle.width = x1 - x0;
-		detections[i].rectangle.height = y1 - y0;
+		proposals.insert(proposals.end(), objects16.begin(), objects16.end());
 	}
+
+	// stride 32 
+	{
+		ncnn::Mat out;
+
+		ex.extract("out2", out);
+
+		std::vector<Object> objects32;
+		generate_proposals(32, out, prob_threshold, objects32);
+
+		proposals.insert(proposals.end(), objects32.begin(), objects32.end());
+	}
+
+	// objects = proposals;
+	for (auto& pro : proposals)
+	{
+		float x0 = pro.rect.x;
+		float y0 = pro.rect.y;
+		float x1 = pro.rect.x + pro.rect.width;
+		float y1 = pro.rect.y + pro.rect.height;
+		float& score = pro.prob;
+		int& label = pro.label;
+
+		x0 = (x0 - (wpad / 2)) / scale;
+		y0 = (y0 - (hpad / 2)) / scale;
+		x1 = (x1 - (wpad / 2)) / scale;
+		y1 = (y1 - (hpad / 2)) / scale;
+
+		x0 = clamp(x0, 0.f, img_w);
+		y0 = clamp(y0, 0.f, img_h);
+		x1 = clamp(x1, 0.f, img_w);
+		y1 = clamp(y1, 0.f, img_h);
+
+		Object obj;
+		obj.rect.x = x0;
+		obj.rect.y = y0;
+		obj.rect.width = x1 - x0;
+		obj.rect.height = y1 - y0;
+		obj.prob = score;
+		obj.label = label;
+		objects.push_back(obj);
+	}
+	non_max_suppression(proposals, objects,
+		img_h, img_w, hpad / 2, wpad / 2,
+		scale, scale, prob_threshold, nms_threshold);
+	return 0;
 }
 
-// List of objects we're detecting
-std::vector<std::string> load_class_list()
+static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
 {
-	std::vector<std::string> class_list;
+	static const char* class_names[] = {
+		"person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
+		"fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+		"elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+		"skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+		"tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+		"sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
+		"potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
+		"microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
+		"hair drier", "toothbrush"
+	};
 
-	std::ifstream stream("content/models/classes.txt");
-
-	std::string line;
-	while (getline(stream, line)) {
-		class_list.push_back(line);
-	}
-
-	return class_list;
-}
-
-void draw_detections(const cv::Mat& input, const std::vector<detection>& objects)
-{
-	std::vector<std::string> class_list = load_class_list();
-	cv::Mat image = input.clone();
+	cv::Mat image = bgr.clone();
 
 	for (size_t i = 0; i < objects.size(); i++)
 	{
-		const detection& obj = objects[i];
+		const Object& obj = objects[i];
 
-		cv::rectangle(image, obj.rectangle, cv::Scalar(255, 0, 0));
+		cv::rectangle(image, obj.rect, cv::Scalar(255, 0, 0));
 
-		std::cout << obj.confidence << std::endl;
-
-		std::string text = std::format("{} {:.1f}%", class_list[obj.class_id], obj.confidence * 100);
+		std::string text = std::format("{}: {:.1f}%", class_names[obj.label], obj.prob * 100);
 
 		int baseLine = 0;
 		cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
 
-		int x = obj.rectangle.x;
-		int y = obj.rectangle.y - label_size.height - baseLine;
+		int x = obj.rect.x;
+		int y = obj.rect.y - label_size.height - baseLine;
 		if (y < 0)
 			y = 0;
 		if (x + label_size.width > image.cols)
@@ -307,28 +367,31 @@ void draw_detections(const cv::Mat& input, const std::vector<detection>& objects
 			cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
 	}
 
-	cv::imshow("image", image);
-	cv::waitKey(0);
+	 cv::imshow("image", image);
+	 cv::waitKey(0);
 }
 
-int main()
+int main(int argc, char** argv)
 {
-	cv::Mat image = cv::imread("content/images/apple.jpg");
+	const char* imagepath = "content/images/apple.jpg";
 
-	std::vector<detection> detections;
-	object_detector detector;
+	cv::Mat m = cv::imread(imagepath, 1);
 
-	auto start = std::chrono::high_resolution_clock::now();
-	detector.detect(image, detections);
-	auto end = std::chrono::high_resolution_clock::now();
-	auto ms_int = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	if (m.empty())
+	{
+		fprintf(stderr, "cv::imread %s failed\n", imagepath);
+		return -1;
+	}
 
-	std::cout << "Took " << ms_int << std::endl;
-	std::cout << "Detection count: " << detections.size() << std::endl;
+	std::vector<Object> objects;
 
-	draw_detections(image, detections);
+	auto start_time = std::chrono::high_resolution_clock::now();
+	detect_yolov11(m, objects);
+	auto end_time = std::chrono::high_resolution_clock::now();
 
-	std::cout << "done" << std::endl;
+	std::cout << "Took " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time) << std::endl;
+
+	draw_objects(m, objects);
 
 	return 0;
 }

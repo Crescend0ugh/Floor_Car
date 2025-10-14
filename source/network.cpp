@@ -6,29 +6,39 @@
 
 #define LOG 0
 
+static std::string delimiter = "\r\n\r\n\r";
+
 using namespace network;
 
-connection::connection(tcp::socket socket):
+void add_delimiter(bytes& byte_stream)
+{
+    for (char& c : delimiter)
+    {
+        byte_stream.push_back((std::byte)c);
+    }
+}
+
+connection::connection(tcp::socket socket) :
     socket(std::move(socket))
 {
 }
 
 void connection::start()
 {
-	read_loop();
+    read_loop();
 }
 
 void connection::send(bytes data, bool at_front = false)
 {
     post(socket.get_executor(), [=] {
-    if (enqueue(std::move(data), at_front))
-        write_loop();
-    });
+        if (enqueue(std::move(data), at_front))
+            write_loop();
+        });
 }
 
 // Returns true if need to start write loop
 bool connection::enqueue(bytes data, bool at_front)
-{ 
+{
     at_front &= !send_queue.empty(); // no difference
     if (at_front)
         send_queue.insert(std::next(std::begin(send_queue)), std::move(data));
@@ -40,7 +50,7 @@ bool connection::enqueue(bytes data, bool at_front)
 
 // Returns true if more messages pending after dequeue
 bool connection::dequeue()
-{ 
+{
     assert(!send_queue.empty());
     send_queue.pop_front();
     return !send_queue.empty();
@@ -55,14 +65,14 @@ void connection::write_loop()
         if (!error && dequeue()) {
             write_loop();
         }
-    });
+        });
 }
 
 void connection::read_loop()
 {
     buffer.consume(buffer.size());
 
-    asio::async_read_until(socket, buffer, "\n", [this, self = shared_from_this()](asio::error_code error, size_t bytes_read) {
+    asio::async_read_until(socket, buffer, delimiter, [this, self = shared_from_this()](asio::error_code error, size_t bytes_read) {
 #if LOG
         std::cout << "Server read: " << bytes_read << " bytes (" << error.message() << ")" << std::endl;
 #endif
@@ -73,7 +83,7 @@ void connection::read_loop()
 
             read_queue.push_back(data);
             read_loop();
-        } 
+        }
         else if (error == asio::error::eof) {
             std::cout << "session terminated" << std::endl;
             return;
@@ -81,7 +91,7 @@ void connection::read_loop()
         else {
             return;
         }
-    });
+        });
 }
 
 void connection::pop_read_queue(received_data& data)
@@ -100,7 +110,7 @@ server::server(asio::io_context& io_context, short port) :
     accept();
 }
 
-size_t server::register_connection(weak_connection_ptr ptr) 
+size_t server::register_connection(weak_connection_ptr ptr)
 {
     std::lock_guard<std::mutex> lock(mutex);
     registered_connections.push_back(ptr);
@@ -108,7 +118,7 @@ size_t server::register_connection(weak_connection_ptr ptr)
 }
 
 template <typename F>
-size_t server::for_each_active(F f) 
+size_t server::for_each_active(F f)
 {
     std::vector<connection_ptr> active;
     {
@@ -144,12 +154,12 @@ void server::accept()
         else {
             std::cout << "network error: " << error.message() << std::endl;
         }
-     });
+        });
 }
 
 size_t server::send_bytes(bytes data)
 {
-    data.push_back((std::byte)'\n');
+    add_delimiter(data);
     return for_each_active([data](connection& c) { c.send(data, true); });
 }
 
@@ -179,7 +189,7 @@ bool server::poll(received_data& data)
     return false;
 }
 
-client::client(asio::io_context& io_context, std::string& ip_address, short port):
+client::client(asio::io_context& io_context, std::string& ip_address, short port) :
     socket(io_context)
 {
     tcp::resolver resolver(io_context);
@@ -197,7 +207,7 @@ void client::read_loop()
 {
     buffer.consume(buffer.size());
 
-    asio::async_read_until(socket, buffer, "\n", [this](asio::error_code error, size_t bytes_read) {
+    asio::async_read_until(socket, buffer, delimiter, [this](asio::error_code error, size_t bytes_read) {
 #if LOG
         std::cout << "Client read: " << bytes_read << " bytes (" << error.message() << ")" << std::endl;
 #endif
@@ -215,7 +225,7 @@ void client::read_loop()
         else {
             std::cout << "read error: " << error.message() << std::endl;
         }
-    });
+        });
 }
 
 // Returns true if need to start write loop
@@ -244,16 +254,16 @@ void client::write_loop()
         if (!error && dequeue()) {
             write_loop();
         }
-    });
+        });
 }
 
 void client::send_bytes(bytes data)
 {
-    data.push_back((std::byte)'\n');
+    add_delimiter(data);
     post(socket.get_executor(), [=] {
         if (enqueue(std::move(data), true))
             write_loop();
-    });
+        });
 }
 
 void client::disconnect()

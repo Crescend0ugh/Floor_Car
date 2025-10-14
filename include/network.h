@@ -31,7 +31,7 @@ namespace network
 		bool dequeue();
 		void write_loop();
 		void read_loop();
-		
+
 	public:
 		connection(tcp::socket socket);
 		void start();

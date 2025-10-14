@@ -3,6 +3,9 @@
 
 #include "network.h"
 
+#define CLIENT_TO_SERVER 0
+#define SERVER_TO_CLIENT 1
+
 struct some_data 
 {
 	double x{};
@@ -28,7 +31,6 @@ int main(int argc, char* argv[]) {
 		std::cout << "client" << std::endl;
 
 		std::string ip = "127.0.0.1";
-
 		asio::io_context io_context;
 		network::client client(io_context, ip, 12345);
 		std::thread thread([&io_context] {
@@ -41,13 +43,16 @@ int main(int argc, char* argv[]) {
 		while (1) {
 			current_time = std::chrono::high_resolution_clock::now();
 
+#if CLIENT_TO_SERVER
 			if (current_time >= next_send_time) {
 				double random_number = (double)rand();
 				std::cout << "\nclient send: the random number is: " << random_number << std::endl;
-				client.send(one, some_data{ random_number, random_number * 2, random_number * 3, "I'M THE CLIENT!" });
+				client.send(one, some_data{ random_number, random_number * 2, random_number * 3, "hihihihi!" });
 				next_send_time += std::chrono::seconds(1);
 			}
+#endif
 
+#if SERVER_TO_CLIENT
 			network::received_data data;
 
 			while (client.poll(data)) {
@@ -75,6 +80,7 @@ int main(int argc, char* argv[]) {
 				}
 
 			}
+#endif
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		}
@@ -92,6 +98,7 @@ int main(int argc, char* argv[]) {
 		while (1) {
 			// SEND
 
+#if SERVER_TO_CLIENT
 			switch (which_protocol)
 			{
 			case one: 
@@ -103,7 +110,11 @@ int main(int argc, char* argv[]) {
 			}
 			case two:
 			{
-				other_data o{ std::vector<float> { 5.0f, 6.0f } };
+				std::vector<float> stuff;
+				for (int i = 0; i < 640 * 640 * 3; ++i) {
+					stuff.push_back(i);
+				}
+				other_data o{ stuff };
 				std::cout << std::format("[server sending two] other_data [ floats is size {} ]\n", o.floats.size()) << std::endl;
 				server.send(protocol::two, o);
 				break;
@@ -111,7 +122,9 @@ int main(int argc, char* argv[]) {
 			default:
 				break;
 			}
+#endif
 
+#if CLIENT_TO_SERVER
 			// READ
 			network::received_data data;
 			while (server.poll(data))
@@ -139,6 +152,7 @@ int main(int argc, char* argv[]) {
 					break;
 				}
 			}
+#endif
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(500));
 

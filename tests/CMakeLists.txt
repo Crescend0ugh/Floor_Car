@@ -22,7 +22,7 @@ foreach(SUBDIRECTORY IN LISTS TEST_SUBDIRECTORIES)
 	
 	add_custom_command(TARGET ${SUBDIRECTORY} POST_BUILD
                    COMMAND ${CMAKE_COMMAND} -E copy_directory
-                       ${CMAKE_SOURCE_DIR}/content/ $<TARGET_FILE_DIR:${SUBDIRECTORY}>/content)
+                       ${CMAKE_SOURCE_DIR}/content/ $<TARGET_FILE_DIR:${SUBDIRECTORY}>/content) 
 
 	target_include_directories(${SUBDIRECTORY} PRIVATE 
 		${CMAKE_SOURCE_DIR}/include 
