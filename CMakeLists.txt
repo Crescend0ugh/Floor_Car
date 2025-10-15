@@ -20,7 +20,7 @@ add_executable(FloorCar ${SOURCES} source/server/main.cpp)
 add_custom_command(TARGET FloorCar POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     ${CMAKE_SOURCE_DIR}/content/ $<TARGET_FILE_DIR:FloorCar>/content)
-
+                    
 target_include_directories(FloorCar PRIVATE include/ third_party/asio/include third_party/zpp_bits)
 target_compile_definitions(FloorCar PRIVATE ASIO_STANDALONE _WIN32_WINNT=0x601)
 target_link_libraries(FloorCar Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static)
