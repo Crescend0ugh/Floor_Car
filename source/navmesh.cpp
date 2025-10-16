@@ -133,7 +133,8 @@ void navmesh::on_mesh_changed(InputGeom* new_geometry)
 {
 	geometry = new_geometry;
 
-	if (geometry) {
+	if (geometry) 
+	{
 		int width = 0, height = 0;
 		const float* bmin = geometry->getNavMeshBoundsMin();
 		const float* bmax = geometry->getNavMeshBoundsMax();
@@ -153,7 +154,8 @@ void navmesh::on_mesh_changed(InputGeom* new_geometry)
 		max_tiles = 1 << tile_bits;
 		max_polys_per_tile = 1 << poly_bits;
 	}
-	else {
+	else 
+	{
 		max_tiles = 0;
 		max_polys_per_tile = 0;
 	}
@@ -198,7 +200,9 @@ void navmesh::build_tile(const float* position)
 		// Let the navmesh own the data.
 		dtStatus status = navmesh_internal->addTile(data, data_size, DT_TILE_FREE_DATA, 0, 0);
 		if (dtStatusFailed(status))
+		{
 			dtFree(data);
+		}
 	}
 }
 
@@ -279,8 +283,7 @@ void navmesh::build_all_tiles()
 
 void navmesh::remove_all_tiles()
 {
-	if (!geometry || !navmesh_internal)
-		return;
+	if (!geometry || !navmesh_internal) return;
 
 	const float* bmin = geometry->getNavMeshBoundsMin();
 	const float* bmax = geometry->getNavMeshBoundsMax();
@@ -291,8 +294,13 @@ void navmesh::remove_all_tiles()
 	const int th = (gh + ts - 1) / ts;
 
 	for (int y = 0; y < th; ++y)
+	{
 		for (int x = 0; x < tw; ++x)
+		{
 			navmesh_internal->removeTile(navmesh_internal->getTileRefAt(x, y, 0), 0, 0);
+		}
+
+	}
 }
 
 unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float* bmin, const float* bmax, int& data_size)
@@ -324,7 +332,8 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 	config.bmax[2] += config.borderSize * config.cs;
 
 	height_field = rcAllocHeightfield();
-	if (!height_field) {
+	if (!height_field) 
+	{
 		context->log(RC_LOG_ERROR, "navmesh::build_tile_mesh: Out of memory 'height_field'.");
 		return 0;
 	}
@@ -351,8 +360,7 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 	tbmax[1] = config.bmax[2];
 	int cid[512];// TODO: Make grow when returning too many items.
 	const int ncid = rcGetChunksOverlappingRect(chunky_mesh, tbmin, tbmax, cid, 512);
-	if (!ncid)
-		return nullptr;
+	if (!ncid) return nullptr;
 
 	tile_tri_count = 0;
 
@@ -511,10 +519,12 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 		// Update poly flags from areas.
 		for (int i = 0; i < poly_mesh->npolys; ++i)
 		{
-			if (poly_mesh->areas[i] == RC_WALKABLE_AREA) {
+			if (poly_mesh->areas[i] == RC_WALKABLE_AREA)
+			{
 				poly_mesh->flags[i] = 0x01;
 			}
-			else {
+			else 
+			{
 				poly_mesh->flags[i] = 0x00;
 			}
 		}
@@ -546,7 +556,8 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 		params.ch = config.ch;
 		params.buildBvTree = true;
 
-		if (!dtCreateNavMeshData(&params, &nav_data, &nav_data_size)) {
+		if (!dtCreateNavMeshData(&params, &nav_data, &nav_data_size)) 
+		{
 			context->log(RC_LOG_ERROR, "Could not build Detour navmesh.");
 			return nullptr;
 		}

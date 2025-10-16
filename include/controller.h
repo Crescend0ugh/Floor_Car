@@ -53,8 +53,10 @@ class controller
 	};
 
 private:
+	// An update rate of 0 ms means the controller will not try to rate-limit itself
 	std::chrono::milliseconds update_rate;
 	std::chrono::time_point<std::chrono::steady_clock> next_update_time;
+	std::chrono::time_point<std::chrono::steady_clock> previous_update_time;
 
 	std::optional<command::command> current_command = std::nullopt;
 	command_context current_command_context;
@@ -78,11 +80,15 @@ public:
 	// quaternion orientation;
 
 	// Convert orientation to yaw-pitch-roll Euler angles and heading should be yaw
-	// This is in degrees?
-	// -179 to 180
+	// -179 to 180 degrees
 	float heading;
 
-	controller();
+	controller(uint32_t update_rate_ms = 0);
+
+	void clear_command_queue();
+	void update();
+
+	// Motor setting stuff 
 
 	size_t get_command_queue_size()
 	{
@@ -124,7 +130,4 @@ public:
 	{
 		command_queue.push(command::rotate_for_seconds{ seconds });
 	}
-
-	void clear_command_queue();
-	void update();
 };

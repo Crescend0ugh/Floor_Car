@@ -38,7 +38,7 @@ int main()
 
 	InitWindow(screen_width, screen_height, "controller demo");
 
-	SetTargetFPS(144);
+	SetTargetFPS(60);
 
     Camera2D camera = { 0 };
     camera.target = Vector2 { 0, 0 };
@@ -52,15 +52,15 @@ int main()
         {
             controller.move_forward_distance(0.5);
         }
-        if (IsKeyDown(KEY_A))
+        else if (IsKeyDown(KEY_A))
         {
             controller.rotate_by(-0.5);
         }
-        if (IsKeyDown(KEY_S))
+        else if (IsKeyDown(KEY_S))
         {
             controller.clear_command_queue();
         }
-        if (IsKeyDown(KEY_D))
+        else if (IsKeyDown(KEY_D))
         {
             controller.rotate_by(0.5);
         }

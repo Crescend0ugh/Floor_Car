@@ -10,20 +10,24 @@ void draw_path_points(path* path)
 	const int path_waypoint_count = path->get_waypoint_count();
 	Vector3 previous_position_vector = { 0.0f };
 
-	for (int i = 0; i < path_waypoint_count; ++i) {
+	for (int i = 0; i < path_waypoint_count; ++i) 
+	{
 		const float* next_position = path->get_waypoint_from_id(i);
 		Vector3 next_position_vector = { next_position[0], next_position[1], next_position[2] };
 
 		// The start position is red, and the end is blue
-		if (i == 0) {
+		if (i == 0) 
+		{
 			previous_position_vector = next_position_vector;
 			DrawSphere(next_position_vector, 0.5f, RED);
 		}
-		else if (i == path_waypoint_count - 1) {
+		else if (i == path_waypoint_count - 1) 
+		{
 			DrawSphere(next_position_vector, 0.75f, GREEN);
 			DrawLine3D(previous_position_vector, next_position_vector, BLUE);
 		}
-		else {
+		else 
+		{
 			DrawSphere(next_position_vector, 0.3f, BLUE);
 			DrawLine3D(previous_position_vector, next_position_vector, BLUE);
 			previous_position_vector = next_position_vector;
@@ -32,7 +36,8 @@ void draw_path_points(path* path)
 }
 
 // To be used externally
-class navmesh_visualizer {
+class navmesh_visualizer 
+{
 public:
 	navmesh_visualizer(const dtNavMesh* navmesh);
 	~navmesh_visualizer();
@@ -65,12 +70,14 @@ navmesh_visualizer::~navmesh_visualizer()
 // I think this crashes...
 void navmesh_visualizer::cleanup()
 {
-	for (Model& model : models) {
+	for (Model& model : models) 
+	{
 		UnloadModel(model);
 	}
 	models.clear();
 
-	for (Mesh* mesh : meshes) {
+	for (Mesh* mesh : meshes) 
+	{
 		UnloadMesh(*mesh);
 		delete mesh->vertices;
 		delete mesh;
@@ -82,9 +89,11 @@ void navmesh_visualizer::load_navmesh()
 {
 	cleanup();
 
-	for (int i = 0; i < navmesh->getMaxTiles(); ++i) {
+	for (int i = 0; i < navmesh->getMaxTiles(); ++i)
+	{
 		const dtMeshTile* tile = navmesh->getTile(i);
-		if (!tile->header) {
+		if (!tile->header) 
+		{
 			continue;
 		}
 
@@ -120,13 +129,15 @@ void navmesh_visualizer::draw_navmesh_tile(const dtMeshTile* tile, Mesh* mesh)
 			const unsigned char* t = &tile->detailTris[(pd->triBase + j) * 4];
 			for (int k = 0; k < 3; ++k)
 			{
-				if (t[k] < p->vertCount) {
+				if (t[k] < p->vertCount) 
+				{
 					float* vert = &tile->verts[p->verts[t[k]] * 3];
 					vertices.push_back(vert[0]);
 					vertices.push_back(vert[1]);
 					vertices.push_back(vert[2]);
 				}
-				else {
+				else
+				{
 					float* vert = &tile->detailVerts[(pd->vertBase + t[k] - p->vertCount) * 3];
 					vertices.push_back(vert[0]);
 					vertices.push_back(vert[1]);
@@ -137,7 +148,8 @@ void navmesh_visualizer::draw_navmesh_tile(const dtMeshTile* tile, Mesh* mesh)
 	}
 
 	mesh->vertices = new float[vertices.size()];
-	for (int i = 0; i < vertices.size(); ++i) {
+	for (int i = 0; i < vertices.size(); ++i)
+	{
 		mesh->vertices[i] = vertices[i];
 	}
 	mesh->vertexCount = triangle_count * 3;
@@ -146,12 +158,15 @@ void navmesh_visualizer::draw_navmesh_tile(const dtMeshTile* tile, Mesh* mesh)
 
 void navmesh_visualizer::draw_wireframe()
 {
-	for (const Model& model : models) {
+	for (const Model& model : models) 
+	{
 		DrawModelWires(model, Vector3{ 0.0f, 0.0f, 0.0f }, 1, DARKPURPLE);
 	}
 
-	for (Mesh* mesh : meshes) {
-		for (int i = 0; i < mesh->vertexCount; ++i) {
+	for (Mesh* mesh : meshes) 
+	{
+		for (int i = 0; i < mesh->vertexCount; ++i) 
+		{
 			float* v = &mesh->vertices[3 * i];
 			DrawSphere(Vector3{ v[0], v[1], v[2] }, 0.2, DARKPURPLE);
 		}
@@ -224,7 +239,8 @@ int main()
 		//----------------------------------------------------------------------------------
 		UpdateCamera(&camera, CAMERA_FREE);
 
-		if (IsKeyPressed(KEY_Z)) {
+		if (IsKeyPressed(KEY_Z)) 
+		{
 			camera.target = { 0.0f, 0.0f, 0.0f };
 		}
 		//----------------------------------------------------------------------------------

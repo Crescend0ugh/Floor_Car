@@ -28,23 +28,28 @@ void path::recalculate()
 { 
 	if (!navmesh) return;
 
-	if (is_start_pos_set) {
+	if (is_start_pos_set) 
+	{
 		query->findNearestPoly(start_pos, half_extents, &filter, &start_poly_ref, nullptr);
 	}
-	else {
+	else 
+	{
 		start_poly_ref = 0;
 	}
 
-	if (is_end_pos_set) {
+	if (is_end_pos_set) 
+	{
 		query->findNearestPoly(end_pos, half_extents, &filter, &end_poly_ref, nullptr);
 	}
-	else {
+	else 
+	{
 		end_poly_ref = 0;
 	}
 	
 	pathfind_status = DT_FAILURE;
 
-	if (!start_poly_ref || !end_poly_ref || !is_start_pos_set || !is_end_pos_set) {
+	if (!start_poly_ref || !end_poly_ref || !is_start_pos_set || !is_end_pos_set) 
+	{
 		polys_count = 0;
 		path_waypoints_count = 0;
 		return;
@@ -53,12 +58,14 @@ void path::recalculate()
 	query->findPath(start_poly_ref, end_poly_ref, start_pos, end_pos, &filter, polys, &polys_count, MAX_POLYS);
 	path_waypoints_count = 0;
 
-	if (polys_count) {
+	if (polys_count) 
+	{
 		float end_pos_copy[3];
 		dtVcopy(end_pos_copy, end_pos);
 
 		// In case of partial path, make sure the end point is clamped to the last polygon
-		if (polys[polys_count - 1] != end_poly_ref) {
+		if (polys[polys_count - 1] != end_poly_ref) 
+		{
 			query->closestPointOnPoly(polys[polys_count - 1], end_pos, end_pos_copy, nullptr);
 		}
 
@@ -84,7 +91,8 @@ void path::set_end(const float* position)
 const float* path::get_next_waypoint() 
 {
 	// We've finished traversing the path
-	if (current_waypoint_id > path_waypoints_count - 1) {
+	if (current_waypoint_id > path_waypoints_count - 1) 
+	{
 		return nullptr;
 	}
 
@@ -97,7 +105,8 @@ const float* path::get_next_waypoint()
 
 void path::increment_waypoint()
 {
-	if (current_waypoint_id > path_waypoints_count - 1) {
+	if (current_waypoint_id > path_waypoints_count - 1) 
+	{
 		return;
 	}
 
@@ -118,7 +127,8 @@ void path::reset()
 
 const float* path::get_waypoint_from_id(int id) 
 {
-	if (id > path_waypoints_count - 1) {
+	if (id > path_waypoints_count - 1) 
+	{
 		return nullptr;
 	}
 

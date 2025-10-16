@@ -19,26 +19,78 @@ namespace network
 		bytes serialized_data;
 	};
 
-	class connection : public std::enable_shared_from_this<connection>
+	class io : public std::enable_shared_from_this<io>
 	{
-	private:
+	protected:
 		tcp::socket socket;
 		asio::streambuf buffer;
 		std::list<bytes> send_queue;
 		std::list<bytes> read_queue;
 
-		bool enqueue(bytes data, bool at_front);
-		bool dequeue();
-		void write_loop();
-		void read_loop();
+	public:
+		io(tcp::socket socket):
+			socket(std::move(socket))
+		{
+		}
+
+		bool enqueue(bytes data, bool at_front)
+		{
+			at_front &= !send_queue.empty(); // no difference
+			if (at_front)
+				send_queue.insert(std::next(std::begin(send_queue)), std::move(data));
+			else
+				send_queue.push_back(std::move(data));
+
+			return send_queue.size() == 1;
+		}
+
+		bool dequeue()
+		{
+			assert(!send_queue.empty());
+			send_queue.pop_front();
+			return !send_queue.empty();
+		}
+
+		void send(bytes data, bool at_front = false)
+		{
+			post(socket.get_executor(), [=] 
+			{
+				if (enqueue(std::move(data), at_front))
+				{
+					write_loop();
+				}
+			});
+		}
+
+		bool pop_read_queue(received_data& data)
+		{
+			if (read_queue.empty()) 
+			{
+				return false;
+			}
+
+			bytes received = std::move(read_queue.front());
+			data.serialized_data = received;
+			data.protocol_id = static_cast<int>(data.serialized_data[0]);
+			read_queue.pop_front();
+
+			return true;
+		}
+
+		virtual void write_loop() = 0;
+
+		virtual void read_loop() = 0;
+	};
+
+	class connection : public io
+	{
+	private:
+		void write_loop() override;
+		void read_loop() override;
 
 	public:
-		connection(tcp::socket socket);
+		using io::io;
 		void start();
-
-		void pop_read_queue(received_data& data);
-		void send(bytes data, bool at_front);
-		std::list<bytes> get_read_queue() { return read_queue; };
 	};
 
 	class server
@@ -66,28 +118,30 @@ namespace network
 
 		bool poll(received_data& data);
 
-		// Anything with auto in parameters needs to be in the header...
 		size_t send(int protocol, auto data)
 		{
-			auto [serialized, out] = zpp::bits::data_out();
+			bytes serialized;
+			zpp::bits::out out(serialized);
+
+			size_t size_header = 0;
+			out(size_header).or_throw();
+
 			out(protocol).or_throw();
 			out(data).or_throw();
+
+			// Go back and write the actual size
+			out.reset();
+			out(serialized.size() - sizeof(size_header));
+
 			return send_bytes(serialized);
 		}
 	};
 
-	class client
+	class client : public io
 	{
 	private:
-		tcp::socket socket;
-		asio::streambuf buffer;
-		std::list<bytes> send_queue;
-		std::list<bytes> read_queue;
-
-		bool enqueue(bytes data, bool at_front);
-		bool dequeue();
-		void write_loop();
-		void read_loop();
+		void write_loop() override;
+		void read_loop() override;
 
 		void send_bytes(bytes data);
 
@@ -101,12 +155,20 @@ namespace network
 
 		void send(int protocol, auto data)
 		{
-			auto [serialized, out] = zpp::bits::data_out();
+			bytes serialized;
+			zpp::bits::out out(serialized);
+
+			size_t size_header = 0;
+			out(size_header).or_throw();
+
 			out(protocol).or_throw();
 			out(data).or_throw();
+
+			out.reset();
+			out(serialized.size() - sizeof(size_header));
+
 			send_bytes(serialized);
 		}
-
 	};
 
 	void deserialize(auto& target, received_data& data)

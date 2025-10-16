@@ -3,7 +3,7 @@
 
 #include "network.h"
 
-#define CLIENT_TO_SERVER 0
+#define CLIENT_TO_SERVER 1
 #define SERVER_TO_CLIENT 1
 
 struct some_data 
@@ -26,7 +26,8 @@ enum protocol
 	max_protocols
 };
 
-int main(int argc, char* argv[]) { 
+int main(int argc, char* argv[])
+{ 
 	if (argc > 1) {
 		std::cout << "client" << std::endl;
 
@@ -103,7 +104,7 @@ int main(int argc, char* argv[]) {
 			{
 			case one: 
 			{
-				some_data s { 6.7, 5.555, -4243, "Jim" };
+				some_data s { rand(), rand(), -rand(), "Jim"};
 				std::cout << std::format("[server sending one] some_data [ x: {}, y: {}, z: {}, name: {} ]\n", s.x, s.y, s.z, s.name) << std::endl;
 				server.send(protocol::one, s);
 				break;

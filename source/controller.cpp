@@ -1,5 +1,7 @@
 #include "controller.h"
 
+using namespace std::chrono_literals;
+
 static constexpr auto seconds_to_chrono_nanoseconds(const float time_seconds)
 {
 	return std::chrono::round<std::chrono::nanoseconds>(std::chrono::duration<float>(time_seconds));
@@ -13,9 +15,10 @@ static float get_signed_angle(const float target_angle, const float start_angle)
 	return angle;
 }
 
-controller::controller():
-	update_rate(std::chrono::milliseconds(10)),
+controller::controller(uint32_t update_rate_ms) :
+	update_rate(std::chrono::milliseconds(update_rate_ms)),
 	next_update_time(std::chrono::seconds(0)),
+	previous_update_time(std::chrono::seconds(0)),
 	acceleration(maid::vector3f()),
 	position(maid::vector3f()),
 	velocity(maid::vector3f()),
@@ -37,15 +40,17 @@ void controller::update()
 {
 	auto current_time = std::chrono::high_resolution_clock::now();
 
-	if (current_time < next_update_time)
+	if (update_rate > 0ms && current_time < next_update_time)
 	{
 		return;
 	}
 
-	auto delta_time = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(current_time - next_update_time).count() / 1000.0f;
-	next_update_time = current_time + update_rate;
+	auto delta_time = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(current_time - previous_update_time).count() / 1000.0f;
 
-	// Update acceleration and angular velocity here, possibly (they're public, so)
+	next_update_time = current_time + update_rate;
+	previous_update_time = current_time;
+
+	// Update acceleration and angular velocity here, possibly (they're public, so it's not necessary here)
 
 	// Estimate position, velocity, orientation
 	velocity += acceleration * delta_time;
@@ -81,73 +86,67 @@ void controller::update()
 	}
 	else if (command::move_for_seconds* command = std::get_if<command::move_for_seconds>(command_ptr))
 	{
+		// TODO
+		
 		// Done moving
 		if (current_time >= current_command_context.start_time + seconds_to_chrono_nanoseconds(command->seconds))
 		{
 			current_command.reset();
-			return;
 		}
-
-		// TODO
 	}
 	else if (command::rotate_for_seconds* command = std::get_if<command::rotate_for_seconds>(command_ptr))
 	{
+		// TODO
+		
 		// Done rotating
 		if (current_time >= current_command_context.start_time + seconds_to_chrono_nanoseconds(command->seconds))
 		{
 			current_command.reset();
-			return;
 		}
-
-		// TODO
 	}
 	else if (command::move_distance* command = std::get_if<command::move_distance>(command_ptr))
 	{
-		// TODO: Decide on an epsilon
-		if ((position - current_command_context.start_position).length() > command->distance * 0.99)
-		{
-			current_command.reset();
-			return;
-		}
-
 		// TODO
 		
 		// PLACEHOLDER
 		float velocity_magnitude = 1;
 		auto direction = maid::vector3f(sin(heading * std::numbers::pi / 180.0f), 0, -cos(heading * std::numbers::pi / 180.0f));
 		position += direction * velocity_magnitude;
+
+		// TODO: Decide on an epsilon
+		if ((position - current_command_context.start_position).length() > command->distance * 0.99)
+		{
+			current_command.reset();
+		}
 	}
 	else if (command::rotate_to_heading* command = std::get_if<command::rotate_to_heading>(command_ptr))
 	{
 		float signed_angle = get_signed_angle(command->heading, heading);
+		// Rotate clockwise (negative) or counterclockwise (positive)?
+		int sign = signed_angle < 0.0f ? -1 : 1;
+
+		// TODO
 
 		// TODO: Decide on an epsilon
 		if (abs(signed_angle) < 0.005)
 		{
 			current_command.reset();
-			return;
 		}
-
-		// Rotate clockwise (negative) or counterclockwise (positive)?
-		int sign = signed_angle < 0.0f ? -1 : 1;
-
-		// TODO
 	}
 	else if (command::rotate_by* command = std::get_if<command::rotate_by>(command_ptr))
 	{
+		// TODO
+		
+		// PLACEHOLDER
+		float angular_velocity_magnitude = 0.5;
+		heading += (command->delta_heading < 0 ? -1 : 1) * angular_velocity_magnitude;
+
 		float signed_angle = get_signed_angle(heading, current_command_context.start_heading);
 
 		// TODO: Decide on an epsilon
 		if (abs(signed_angle) >= 0.99 * abs(command->delta_heading))
 		{
 			current_command.reset();
-			return;
 		}
-
-		// TODO
-		
-		// PLACEHOLDER
-		float angular_velocity_magnitude = 0.1;
-		heading += (command->delta_heading < 0 ? -1 : 1) * angular_velocity_magnitude;
 	}
 }
