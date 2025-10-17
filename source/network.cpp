@@ -6,17 +6,7 @@
 
 #define LOG 0
 
-static std::string delimiter = "\r\n\r\n\r";
-
 using namespace network;
-
-void add_delimiter(bytes& byte_stream)
-{
-    for (char& c : delimiter)
-    {
-        byte_stream.push_back((std::byte)c);
-    }
-}
 
 void connection::start()
 {
@@ -27,9 +17,6 @@ void connection::write_loop()
 {
     asio::async_write(socket, asio::buffer(send_queue.front()), [this, self = shared_from_this()](asio::error_code error, size_t bytes_written) 
         {
-#if LOG
-        std::cout << "Server sent: " << bytes_written << " bytes (" << error.message() << ")" << std::endl;
-#endif
             if (!error && dequeue()) 
             {
                 write_loop();
@@ -48,7 +35,6 @@ void connection::read_loop()
                 size_t payload_size = 0;
                 std::memcpy(&payload_size, buffer.data().data(), sizeof(payload_size));
 
-                std::cout << "Received " << payload_size << " bytes" << std::endl;
                 buffer.consume(buffer.size());
 
                 // Read payload
@@ -196,7 +182,6 @@ void client::read_loop()
                 size_t payload_size = 0;
                 std::memcpy(&payload_size, buffer.data().data(), sizeof(payload_size));
 
-                std::cout << "Received " << payload_size << " bytes" << std::endl;
                 buffer.consume(buffer.size());
 
                 // Read payload

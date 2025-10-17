@@ -16,6 +16,9 @@ static float get_signed_angle(const float target_angle, const float start_angle)
 }
 
 controller::controller(uint32_t update_rate_ms) :
+	drive_state(remote_control_drive_state::not_driving),
+	steer_state(remote_control_steer_state::not_steering),
+	is_remote_controlled(false),
 	update_rate(std::chrono::milliseconds(update_rate_ms)),
 	next_update_time(std::chrono::seconds(0)),
 	previous_update_time(std::chrono::seconds(0)),
@@ -59,19 +62,63 @@ void controller::update()
 	// orientation += angular_velocity as quaternion * delta_time
 
 	// Get next command
-	if (!current_command.has_value())
+	if (!current_command.has_value() && !command_queue.empty())
 	{
-		if (command_queue.empty())
-		{
-			return;
-		}
-
 		current_command = command_queue.front();
 		command_queue.pop();
 
 		current_command_context.start_time = current_time;
 		current_command_context.start_position = position;
 		current_command_context.start_heading = heading;
+	}
+
+	// If there's no command active, listen to remote controls
+	if (is_remote_controlled && !current_command.has_value())
+	{
+		switch (drive_state)
+		{
+		case remote_control_drive_state::forward: {
+			// PLACEHOLDER
+			float velocity_magnitude = 1;
+			auto direction = maid::vector3f(sin(heading * std::numbers::pi / 180.0f), 0, -cos(heading * std::numbers::pi / 180.0f));
+			position += direction * velocity_magnitude;
+
+			break;
+		}
+
+		case remote_control_drive_state::not_driving: {
+			break;
+		}
+		}
+
+		switch (steer_state)
+		{
+		case remote_control_steer_state::left: {
+			// PLACEHOLDER
+			float angular_velocity_magnitude = 0.5;
+			heading -= angular_velocity_magnitude;
+
+			break;
+		}
+
+		case remote_control_steer_state::right: {
+			// PLACEHOLDER
+			float angular_velocity_magnitude = 0.5;
+			heading += angular_velocity_magnitude;
+
+			break;
+		}
+
+		default: {
+			break;
+		}
+		}
+
+	}
+
+	if (!current_command.has_value())
+	{
+		return;
 	}
 
 	auto command_ptr = &current_command.value();
@@ -109,12 +156,12 @@ void controller::update()
 		// TODO
 		
 		// PLACEHOLDER
-		float velocity_magnitude = 1;
+		float velocity_magnitude = 0.5;
 		auto direction = maid::vector3f(sin(heading * std::numbers::pi / 180.0f), 0, -cos(heading * std::numbers::pi / 180.0f));
 		position += direction * velocity_magnitude;
 
 		// TODO: Decide on an epsilon
-		if ((position - current_command_context.start_position).length() > command->distance * 0.99)
+		if ((position - current_command_context.start_position).length() > command->distance * 0.999)
 		{
 			current_command.reset();
 		}
@@ -136,15 +183,14 @@ void controller::update()
 	else if (command::rotate_by* command = std::get_if<command::rotate_by>(command_ptr))
 	{
 		// TODO
-		
-		// PLACEHOLDER
-		float angular_velocity_magnitude = 0.5;
-		heading += (command->delta_heading < 0 ? -1 : 1) * angular_velocity_magnitude;
-
 		float signed_angle = get_signed_angle(heading, current_command_context.start_heading);
 
+		// PLACEHOLDER
+		float angular_velocity_magnitude = 0.5;
+		heading += (signed_angle < 0.0f ? -1 : 1) * angular_velocity_magnitude;
+
 		// TODO: Decide on an epsilon
-		if (abs(signed_angle) >= 0.99 * abs(command->delta_heading))
+		if (abs(signed_angle) >= 0.999 * abs(command->delta_heading))
 		{
 			current_command.reset();
 		}

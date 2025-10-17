@@ -43,6 +43,19 @@ namespace command
 	using command = std::variant<move_distance, move_for_seconds, rotate_to_heading, rotate_by, rotate_for_seconds, delay>;
 }
 
+enum remote_control_drive_state
+{
+	not_driving = 0,
+	forward,
+};
+
+enum remote_control_steer_state
+{
+	not_steering = 0,
+	left,
+	right,
+};
+
 class controller
 {
 	struct command_context
@@ -66,6 +79,10 @@ private:
 	// front left motor, front right motor, back left motor, back right motor
 
 public:
+	remote_control_drive_state drive_state;
+	remote_control_steer_state steer_state;
+	bool is_remote_controlled;
+
 	// Read from the gyroscope's accelerometer
 	maid::vector3f acceleration;
 
@@ -88,15 +105,44 @@ public:
 	void clear_command_queue();
 	void update();
 
-	// Motor setting stuff 
+	// Motor setting stuff
 
-	size_t get_command_queue_size()
+	auto get_command_queue()
 	{
-		return command_queue.size();
+		return command_queue;
+	}
+
+	auto get_current_command()
+	{
+		return current_command;
+	}
+
+	void normalize_heading()
+	{
+		heading = fmod(heading, 360.0f);
+
+		heading = fmod(heading + 360.0f, 360.0f);
+
+		if (heading > 180.0f)
+		{
+			heading -= 360.0f;
+		}
 	}
 
 	void move_forward_distance(float distance)
 	{
+		if (current_command.has_value())
+		{
+			auto command_ptr = &current_command.value();
+
+			// Add on to existing command
+			if (command::move_distance* command = std::get_if<command::move_distance>(command_ptr))
+			{
+				command->distance += distance;
+				return;
+			}
+		}
+
 		command_queue.push(command::move_distance{ distance });
 	}
 
@@ -112,16 +158,28 @@ public:
 
 	void rotate_by(float delta_heading)
 	{
-		// Normalize
-		//float goal_heading = heading + delta_heading;
-		//goal_heading = fmod(goal_heading, 360.0f);
+		if (current_command.has_value())
+		{
+			auto command_ptr = &current_command.value();
 
-		//goal_heading = fmod(goal_heading + 360.0f, 360.0f);
+			// Add on to existing command
+			if (command::rotate_by* command = std::get_if<command::rotate_by>(command_ptr))
+			{
+				// Normalize goal angle
+				float goal_heading = command->delta_heading + delta_heading;
+				goal_heading = fmod(goal_heading, 360.0f);
 
-		//if (goal_heading > 180.0f)
-		//{
-		//	goal_heading -= 360.0f;
-		//}
+				goal_heading = fmod(goal_heading + 360.0f, 360.0f);
+
+				if (goal_heading > 180.0f)
+				{
+					goal_heading -= 360.0f;
+				}
+
+				command->delta_heading = goal_heading;
+				return;
+			}
+		}
 
 		command_queue.push(command::rotate_by{ delta_heading });
 	}
