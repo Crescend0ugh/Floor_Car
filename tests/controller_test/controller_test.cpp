@@ -55,6 +55,8 @@ const char* get_command_text(command::command* command_ptr)
     {
         return TextFormat("Rotate by: %.2f deg", command->delta_heading);
     }
+
+    return "";
 }
 
 void draw_controller_state(controller controller)
@@ -76,15 +78,14 @@ void draw_controller_state(controller controller)
     DrawText(TextFormat("Angle (deg): %.2f", controller.heading), x, get_y(2), font_size, DARKGRAY);
     DrawText(TextFormat("Command Queue Size: %d", controller.get_command_queue().size()), x, get_y(3), font_size, DARKGRAY);
 
-    if (controller.get_current_command().has_value())
+
+    if (!controller.get_current_command().has_value())
     {
-        auto command = *controller.get_current_command();
-        DrawText(TextFormat("[Current Command] %s", get_command_text(&command)), x, get_y(4), font_size, GREEN);
+        return;
     }
-    else
-    {
-        DrawText(TextFormat("[Current Command] None"), x, get_y(4), font_size, RED);
-    }
+
+    auto command = *controller.get_current_command();
+    DrawText(TextFormat("[Current Command] %s", get_command_text(&command)), x, get_y(4), font_size, GREEN);
 
     auto command_queue_copy = controller.get_command_queue();
     int queued_command_count = 1;
@@ -147,6 +148,10 @@ int main()
         if (IsKeyDown(KEY_F))
         {
             controller.move_forward_distance(1);
+        }
+        if (IsKeyDown(KEY_E))
+        {
+            controller.rotate_to(0);
         }
 
         BeginDrawing();

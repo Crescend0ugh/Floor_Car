@@ -64,12 +64,7 @@ void controller::update()
 	// Get next command
 	if (!current_command.has_value() && !command_queue.empty())
 	{
-		current_command = command_queue.front();
-		command_queue.pop();
-
-		current_command_context.start_time = current_time;
-		current_command_context.start_position = position;
-		current_command_context.start_heading = heading;
+		next_command();
 	}
 
 	// If there's no command active, listen to remote controls
@@ -138,7 +133,7 @@ void controller::update()
 		// Done moving
 		if (current_time >= current_command_context.start_time + seconds_to_chrono_nanoseconds(command->seconds))
 		{
-			current_command.reset();
+			next_command();
 		}
 	}
 	else if (command::rotate_for_seconds* command = std::get_if<command::rotate_for_seconds>(command_ptr))
@@ -148,7 +143,7 @@ void controller::update()
 		// Done rotating
 		if (current_time >= current_command_context.start_time + seconds_to_chrono_nanoseconds(command->seconds))
 		{
-			current_command.reset();
+			next_command();
 		}
 	}
 	else if (command::move_distance* command = std::get_if<command::move_distance>(command_ptr))
@@ -163,7 +158,7 @@ void controller::update()
 		// TODO: Decide on an epsilon
 		if ((position - current_command_context.start_position).length() > command->distance * 0.999)
 		{
-			current_command.reset();
+			next_command();
 		}
 	}
 	else if (command::rotate_to_heading* command = std::get_if<command::rotate_to_heading>(command_ptr))
@@ -172,27 +167,36 @@ void controller::update()
 		// Rotate clockwise (negative) or counterclockwise (positive)?
 		int sign = signed_angle < 0.0f ? -1 : 1;
 
-		// TODO
-
 		// TODO: Decide on an epsilon
 		if (abs(signed_angle) < 0.005)
 		{
-			current_command.reset();
+			next_command();
+		}
+		else
+		{
+			// PLACEHOLDER
+			float angular_velocity_magnitude = 0.5;
+			heading += sign * angular_velocity_magnitude;
 		}
 	}
 	else if (command::rotate_by* command = std::get_if<command::rotate_by>(command_ptr))
 	{
 		// TODO
-		float signed_angle = get_signed_angle(heading, current_command_context.start_heading);
+		int sign = command->delta_heading < 0.0f ? -1 : 1;
 
 		// PLACEHOLDER
 		float angular_velocity_magnitude = 0.5;
-		heading += (signed_angle < 0.0f ? -1 : 1) * angular_velocity_magnitude;
+
+		// progress = sign * angular velocity * delta time
+		float progress = sign * angular_velocity_magnitude;
+		heading += progress;
+
+		command->progress += progress;
 
 		// TODO: Decide on an epsilon
-		if (abs(signed_angle) >= 0.999 * abs(command->delta_heading))
+		if (abs(command->progress - command->delta_heading) < 0.05)
 		{
-			current_command.reset();
+			next_command();
 		}
 	}
 }

@@ -28,6 +28,7 @@ namespace command
 	struct rotate_by
 	{
 		float delta_heading;
+		float progress;
 	};
 
 	struct rotate_for_seconds
@@ -61,8 +62,8 @@ class controller
 	struct command_context
 	{
 		std::chrono::time_point<std::chrono::steady_clock> start_time;
-		maid::vector3f start_position;
-		float start_heading;
+		maid::vector3f start_position = maid::vector3f();
+		float start_heading = 0;
 	};
 
 private:
@@ -117,6 +118,25 @@ public:
 		return current_command;
 	}
 
+	bool next_command()
+	{
+		current_command.reset();
+
+		if (command_queue.empty())
+		{
+			return false;
+		}
+
+		current_command = command_queue.front();
+		command_queue.pop();
+
+		current_command_context.start_time = std::chrono::high_resolution_clock::now();
+		current_command_context.start_position = position;
+		current_command_context.start_heading = heading;
+
+		return true;
+	}
+
 	void normalize_heading()
 	{
 		heading = fmod(heading, 360.0f);
@@ -153,6 +173,21 @@ public:
 
 	void rotate_to(float heading)
 	{
+		if (current_command.has_value())
+		{
+			auto command_ptr = &current_command.value();
+
+			// Add on to existing command
+			if (command::rotate_to_heading* command = std::get_if<command::rotate_to_heading>(command_ptr))
+			{
+				// Redundant command
+				if (heading == command->heading)
+				{
+					return;
+				}
+			}
+		}
+
 		command_queue.push(command::rotate_to_heading{ heading });
 	}
 
@@ -181,7 +216,7 @@ public:
 			}
 		}
 
-		command_queue.push(command::rotate_by{ delta_heading });
+		command_queue.push(command::rotate_by{ delta_heading, 0.0f });
 	}
 
 	void rotate_for(float seconds)
