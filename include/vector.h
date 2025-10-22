@@ -7,6 +7,7 @@
 #include <iostream>
 #include <sstream>
 #include <format>
+#include <math.h>
 
 namespace maid
 {

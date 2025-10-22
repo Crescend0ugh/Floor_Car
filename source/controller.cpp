@@ -41,7 +41,7 @@ void controller::clear_command_queue()
 
 void controller::update()
 {
-	auto current_time = std::chrono::high_resolution_clock::now();
+	auto current_time = std::chrono::steady_clock::now();
 
 	if (update_rate > 0ms && current_time < next_update_time)
 	{

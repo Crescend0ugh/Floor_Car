@@ -1,6 +1,8 @@
 #include <DetourNavMesh.h>
 #include <DetourNavMeshBuilder.h>
 
+#include <cstring>
+
 #include "navmesh.h"
 #include "math.h"
 

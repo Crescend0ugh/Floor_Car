@@ -221,7 +221,7 @@ void client::write_loop()
 
 void client::send_bytes(bytes data)
 {
-    post(socket.get_executor(), [=] 
+    post(socket.get_executor(), [=, this] 
         {
             if (enqueue(std::move(data), true))
             {

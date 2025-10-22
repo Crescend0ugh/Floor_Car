@@ -53,7 +53,7 @@ namespace network
 
 		void send(bytes data, bool at_front = false)
 		{
-			post(socket.get_executor(), [=] 
+			post(socket.get_executor(), [=, this] 
 			{
 				if (enqueue(std::move(data), at_front))
 				{
@@ -131,7 +131,7 @@ namespace network
 
 			// Go back and write the actual size
 			out.reset();
-			out(serialized.size() - sizeof(size_header));
+			out(serialized.size() - sizeof(size_header)).or_throw();
 
 			return send_bytes(serialized);
 		}
@@ -165,7 +165,7 @@ namespace network
 			out(data).or_throw();
 
 			out.reset();
-			out(serialized.size() - sizeof(size_header));
+			out(serialized.size() - sizeof(size_header)).or_throw();
 
 			send_bytes(serialized);
 		}
@@ -176,8 +176,8 @@ namespace network
 		zpp::bits::in in(data.serialized_data);
 
 		int protocol_id = 0;
-		in(protocol_id);
+		in(protocol_id).or_throw();
 
-		in(target);
+		in(target).or_throw();
 	}
 };

@@ -10,7 +10,7 @@ class path
 {
 	static const int MAX_POLYS = 256;
 
-	navmesh* navmesh = nullptr;
+	class navmesh* navmesh = nullptr;
 	dtNavMeshQuery* query = nullptr;
 
 	dtStatus pathfind_status = DT_FAILURE;

@@ -130,7 +130,7 @@ public:
 		current_command = command_queue.front();
 		command_queue.pop();
 
-		current_command_context.start_time = std::chrono::high_resolution_clock::now();
+		current_command_context.start_time = std::chrono::steady_clock::now();
 		current_command_context.start_position = position;
 		current_command_context.start_heading = heading;
 

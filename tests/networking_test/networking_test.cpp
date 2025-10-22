@@ -31,7 +31,7 @@ int main(int argc, char* argv[])
 	if (argc > 1) {
 		std::cout << "client" << std::endl;
 
-		std::string ip = "127.0.0.1";
+		std::string ip = "10.20.2.14";
 		asio::io_context io_context;
 		network::client client(io_context, ip, 12345);
 		std::thread thread([&io_context] {
