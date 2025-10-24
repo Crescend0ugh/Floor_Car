@@ -4,7 +4,25 @@
 
 #pragma once
 
+#include <opencv2/opencv.hpp>
+
 #include <string>
+#include <chrono>
+
+enum protocol
+{
+    placeholder = 0,
+    camera_feed,
+};
+
+struct camera_frame
+{
+    uint8_t camera_id;
+    int frame_height;
+    int frame_width;
+    std::vector<uchar> bgr_pixels; // [B, G, R, B, G, R, ...]
+    uint16_t processing_time;
+};
 
 struct message
 {

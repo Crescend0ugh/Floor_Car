@@ -44,7 +44,7 @@ static void draw_results(const cv::Mat& bgr, const std::vector<detection>& objec
 	 }
 }
 
-void run_model(yolo_model& model, cv::Mat& m, bool is_camera_feed)
+cv::Mat run_model(yolo_model& model, cv::Mat& m)
 {
 	std::vector<detection> objects;
 
@@ -54,7 +54,7 @@ void run_model(yolo_model& model, cv::Mat& m, bool is_camera_feed)
 
 	auto runtime = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-	draw_results(m, objects, runtime, is_camera_feed);
+	return annotate_detections(m, objects, runtime);
 }
 
 void run_on_static_image(const char* path)
@@ -70,7 +70,9 @@ void run_on_static_image(const char* path)
 	}
 
 	yolo_model yolo;
-	run_model(yolo, m, false);
+	cv::Mat results = run_model(yolo, m);
+	cv::imshow("image", results);
+	cv::waitKey(0);
 }
 
 void run_on_camera_feed()
@@ -107,7 +109,8 @@ void run_on_camera_feed()
 			break;
 		}
 
-		run_model(yolo, frame, true);
+		cv::Mat results = run_model(yolo, frame);
+		cv::imshow("image", results);
 
 		// Press q to quit
 		if (cv::waitKey(1) == 'q') {

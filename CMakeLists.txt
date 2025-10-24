@@ -23,7 +23,9 @@ add_custom_command(TARGET FloorCar POST_BUILD
                     
 target_include_directories(FloorCar PRIVATE include/ third_party/asio/include third_party/zpp_bits)
 target_compile_definitions(FloorCar PRIVATE ASIO_STANDALONE _WIN32_WINNT=0x601)
-target_link_libraries(FloorCar Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static)
+target_link_libraries(FloorCar Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn)
+
+#####################
 
 add_executable(FloorCarClient ${SOURCES} source/client/main.cpp)
 add_custom_command(TARGET FloorCarClient POST_BUILD
@@ -32,4 +34,4 @@ add_custom_command(TARGET FloorCarClient POST_BUILD
 
 target_include_directories(FloorCarClient PRIVATE include/ third_party/asio/include third_party/zpp_bits)
 target_compile_definitions(FloorCarClient PRIVATE ASIO_STANDALONE)
-target_link_libraries(FloorCarClient Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static)
+target_link_libraries(FloorCarClient Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn)

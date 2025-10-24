@@ -89,9 +89,9 @@ void yolo_model::non_max_suppression(
 
 	for (auto& pro : proposals)
 	{
-		bboxes.push_back(pro.rect);
-		scores.push_back(pro.prob);
-		labels.push_back(pro.label);
+		bboxes.push_back(std::move(pro.rect));
+		scores.push_back(std::move(pro.prob));
+		labels.push_back(std::move(pro.label));
 	}
 
 	cv::dnn::NMSBoxes(
@@ -129,7 +129,7 @@ void yolo_model::non_max_suppression(
 		obj.rect.height = y1 - y0;
 		obj.prob = score;
 		obj.label = label;
-		results.push_back(obj);
+		results.push_back(std::move(obj));
 	}
 }
 
@@ -186,7 +186,7 @@ void yolo_model::generate_proposals(
 				obj.rect.height = y1 - y0;
 				obj.label = class_index;
 				obj.prob = class_score;
-				objects.push_back(obj);
+				objects.push_back(std::move(obj));
 
 			}
 		}
@@ -234,7 +234,8 @@ void yolo_model::detect(const cv::Mat& bgr, std::vector<detection>& detections)
 		left,
 		right,
 		ncnn::BORDER_CONSTANT,
-		114.f); // What is 114? I have no idea
+		114.f
+	); // What is 114? I have no idea
 
 	in_pad.substract_mean_normalize(0, norm_vals);
 
@@ -251,7 +252,7 @@ void yolo_model::detect(const cv::Mat& bgr, std::vector<detection>& detections)
 		std::vector<detection> objects8;
 		generate_proposals(8, out, objects8);
 
-		proposals.insert(proposals.end(), objects8.begin(), objects8.end());
+		proposals.insert(proposals.end(), std::make_move_iterator(objects8.begin()), std::make_move_iterator(objects8.end()));
 	}
 
 	// stride 16 
@@ -263,7 +264,7 @@ void yolo_model::detect(const cv::Mat& bgr, std::vector<detection>& detections)
 		std::vector<detection> objects16;
 		generate_proposals(16, out, objects16);
 
-		proposals.insert(proposals.end(), objects16.begin(), objects16.end());
+		proposals.insert(proposals.end(), std::make_move_iterator(objects16.begin()), std::make_move_iterator(objects16.end()));
 	}
 
 	// stride 32 
@@ -275,7 +276,7 @@ void yolo_model::detect(const cv::Mat& bgr, std::vector<detection>& detections)
 		std::vector<detection> objects32;
 		generate_proposals(32, out, objects32);
 
-		proposals.insert(proposals.end(), objects32.begin(), objects32.end());
+		proposals.insert(proposals.end(), std::make_move_iterator(objects32.begin()), std::make_move_iterator(objects32.end()));
 	}
 
 	// objects = proposals;
@@ -305,7 +306,7 @@ void yolo_model::detect(const cv::Mat& bgr, std::vector<detection>& detections)
 		obj.rect.height = y1 - y0;
 		obj.prob = score;
 		obj.label = label;
-		detections.push_back(obj);
+		detections.push_back(std::move(obj));
 	}
 
 	non_max_suppression(proposals, detections,
@@ -316,4 +317,39 @@ void yolo_model::detect(const cv::Mat& bgr, std::vector<detection>& detections)
 const char* get_detection_class_name(int id)
 {
 	return class_names[id];
+}
+
+cv::Mat annotate_detections(const cv::Mat& bgr, const std::vector<detection>& detections, std::chrono::milliseconds processing_time)
+{
+	cv::Mat image = bgr.clone();
+
+	for (size_t i = 0; i < detections.size(); i++)
+	{
+		const detection& obj = detections[i];
+
+		cv::rectangle(image, obj.rect, cv::Scalar(255, 0, 0));
+
+		std::string text = std::format("{}: {:.1f}%", get_detection_class_name(obj.label), obj.prob * 100);
+
+		int base_line = 0;
+		cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &base_line);
+
+		int x = obj.rect.x;
+		int y = obj.rect.y - label_size.height - base_line;
+		if (y < 0)
+			y = 0;
+		if (x + label_size.width > image.cols)
+			x = image.cols - label_size.width;
+
+		cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + base_line)),
+			cv::Scalar(255, 255, 255), -1);
+
+		cv::putText(image, text, cv::Point(x, y + label_size.height),
+			cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+	}
+
+	std::string processing_time_text = std::format("Took: {}", processing_time);
+	cv::putText(image, processing_time_text, cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+
+	return image;
 }

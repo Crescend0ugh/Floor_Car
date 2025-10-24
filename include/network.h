@@ -118,6 +118,11 @@ namespace network
 
 		bool poll(received_data& data);
 
+		size_t get_client_count()
+		{
+			return registered_connections.size();
+		}
+
 		size_t send(int protocol, auto data)
 		{
 			bytes serialized;
