@@ -13,6 +13,7 @@ enum protocol
 {
     placeholder = 0,
     camera_feed,
+    rc_command,
 };
 
 struct camera_frame
@@ -22,6 +23,11 @@ struct camera_frame
     int frame_width;
     std::vector<uchar> bgr_pixels; // [B, G, R, B, G, R, ...]
     uint16_t processing_time;
+};
+
+struct rc_command
+{
+    
 };
 
 struct message

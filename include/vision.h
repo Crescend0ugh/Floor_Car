@@ -4,7 +4,7 @@
 
 #include <optional>
 
-// If a client is connected, results_image will contain the annotated camera frame
+// If a client is connected, annotated_image will contain the annotated camera frame
 struct detection_results
 {
 	uint8_t camera_id;
@@ -16,21 +16,23 @@ struct detection_results
 class vision
 {
 private:
-	cv::VideoCapture left_camera;
+	std::optional<cv::VideoCapture> left_camera = std::nullopt;
 	cv::Mat left_camera_frame;
 
-	cv::VideoCapture right_camera;
+	std::optional<cv::VideoCapture> right_camera = std::nullopt;
 	cv::Mat right_camera_frame;
 
 	yolo_model yolo;
 
 public:
 	bool is_client_connected = false;
+	bool is_enabled = true;
 	std::vector<detection>* left_camera_detections;
 	std::vector<detection>* right_camera_detections;
 
 	vision();
+	bool initialize_cameras();
 
 	// 0 = left camera, 1 = right camera
-	detection_results detect_from_camera(uint8_t camera_id);
+	detection_results detect_from_camera(int camera_id);
 };

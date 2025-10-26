@@ -1,4 +1,5 @@
- @ -0,0 +1,100 @@
+const unsigned long update_rate_ms = 16;
+
 enum direction
 {
     backward,
@@ -52,26 +53,26 @@ struct motor_driver
     {
         if(dir & forward)
         {
-            pinMode(in_1, HIGH);
-            pinMode(in_2, LOW);
+            digitalWrite(in_1, HIGH);
+            digitalWrite(in_2, LOW);
         }
         if(dir & backward)
         {
-            pinMode(in_1, LOW);
-            pinMode(in_2, HIGH);
+            digitalWrite(in_1, LOW);
+            digitalWrite(in_2, HIGH);
         }
     };
     void set_right_direction(direction dir)
     {
         if(dir & forward)
         {
-            pinMode(in_3, HIGH);
-            pinMode(in_4, LOW);
+            digitalWrite(in_3, HIGH);
+            digitalWrite(in_4, LOW);
         }
         if(dir & backward)
         {
-            pinMode(in_3, LOW);
-            pinMode(in_4, HIGH);
+            digitalWrite(in_3, LOW);
+            digitalWrite(in_4, HIGH);
         }
     };
 
@@ -88,14 +89,38 @@ struct motor_driver
 };
 
 motor_driver driver;
-void setup() {
-    driver = motor_driver(5, 4, 3, 0, 2, 1);
 
-    // put your setup code here, to run once:
+void setup() 
+{
+    Serial.begin(9600);
+
+    driver = motor_driver(5, 7, 6, 3, 1, 2);
+
     delay(500);
 }
 
-void loop() {
-    driver.set_direction(left | right, forward);
-    driver.set_speed(left | right, 255);
+void loop() 
+{
+    //driver.set_direction(left | right, forward);
+    //driver.set_speed(left | right, 255);
+
+    // Read commands from Raspberry Pi
+    while (Serial.available() > 0)
+    {
+        String command = Serial.readStringUntil('\n');
+        Serial.print("RECEIVED: ");
+        Serial.println(command);
+
+        if (command.equals("W"))
+        {
+            driver.set_direction(left | right, forward);
+           
+        }
+        else if (command.equals("A"))
+        {
+            driver.set_direction(left, forward);
+        }
+    }
+
+    delay(update_rate_ms);
 }

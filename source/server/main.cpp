@@ -9,14 +9,15 @@
 #include "network.h"
 #include "network_data.h"
 #include "vision.h"
+#include "controller.h"
 
 #include <raylib.h>
 #include <iostream>
 #include <thread>
 #include <functional>
 
-// How often we're running object detection
-const auto vision_interval = std::chrono::milliseconds(1000);
+// Delay between each object detection cycle
+const auto vision_interval = std::chrono::milliseconds(100);
 
 // Convert cv::Mat to a string and processing_time to u16
 camera_frame serialize_detection_results(detection_results& results)
@@ -27,8 +28,7 @@ camera_frame serialize_detection_results(detection_results& results)
 
     if (image.isContinuous()) 
     {
-        // If the matrix is continuous (no padding between rows),
-        // copy all data at once
+        // If the matrix is continuous (no padding between rows), copy all data at once
         pixels.assign(image.data, image.data + image.total() * image.elemSize());
     }
     else 
@@ -52,18 +52,31 @@ camera_frame serialize_detection_results(detection_results& results)
 
 void run_vision(network::server& server, vision& vision, asio::steady_timer& vision_timer)
 {
-    // TODO: Also run on the other camera
-    detection_results results = vision.detect_from_camera(0);
-
-    // Send vision results to clients, if any are connected
-    if (vision.is_client_connected)
+    if (vision.is_enabled)
     {
-        auto serialized = serialize_detection_results(results);
-        server.send(protocol::camera_feed, serialized);
+        std::cout << "Vision heartbeat" << std::endl;
+        // TODO: Also run on the other camera
+        detection_results left_results = vision.detect_from_camera(0);
+        detection_results right_results = vision.detect_from_camera(1);
+
+        // Send vision results to clients, if any are connected
+        if (vision.is_client_connected)
+        {
+            if (left_results.annotated_image.has_value())
+            {
+                auto serialized = serialize_detection_results(left_results);
+                server.send(protocol::camera_feed, serialized);
+            }
+            if (right_results.annotated_image.has_value())
+            {
+                auto serialized = serialize_detection_results(right_results);
+                server.send(protocol::camera_feed, serialized);
+            }
+        }
     }
 
     // Schedule next object detection cycle
-    vision_timer.expires_at(vision_timer.expiry() + vision_interval);
+    vision_timer.expires_at(std::chrono::steady_clock::now() + vision_interval);
     vision_timer.async_wait(std::bind(&run_vision, std::ref(server), std::ref(vision), std::ref(vision_timer)));
 }
 
@@ -85,6 +98,12 @@ int main(int argc, char* argv[]) {
         std::ref(vision), 
         std::ref(vision_timer)
     ));
+
+    controller controller;
+    if (!controller.connect_to_arduino(io_context))
+    {
+        std::cerr << "||| Warning |||: Failed to connect to Arduino UNO" << std::endl;
+    };
 
     network::received_data data;
 

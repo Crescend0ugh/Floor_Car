@@ -28,7 +28,58 @@ controller::controller(uint32_t update_rate_ms) :
 	heading(0.0f),
 	angular_velocity(maid::vector3f())
 {
+}
 
+bool controller::connect_to_arduino(asio::io_context& io)
+{
+
+#ifdef RPI_UBUNTU
+	std::string arduino_port_name = "/dev/ttyUSB0";
+#else
+	std::string arduino_port_name = "COM3"; // Windows USB (CHANGE TO THE ONE THE ARDUINO IDE SAYS IT'S USING)
+#endif
+	
+	// Close the Arduino IDE serial monitor or this won't work!
+	try
+	{
+		arduino_serial_port = asio::serial_port(io, arduino_port_name);
+
+		asio::serial_port& port = arduino_serial_port.value();
+
+		port.set_option(asio::serial_port_base::baud_rate(9600));
+		port.set_option(asio::serial_port_base::character_size(8));
+		port.set_option(asio::serial_port_base::parity(asio::serial_port_base::parity::none));
+		port.set_option(asio::serial_port_base::stop_bits(asio::serial_port_base::stop_bits::one));
+		port.set_option(asio::serial_port_base::flow_control(asio::serial_port_base::flow_control::none));
+
+		std::cout << "Opened Arduino serial port successfully!" << std::endl;
+	}
+	catch (const asio::system_error& error)
+	{
+		arduino_serial_port = std::nullopt;
+
+		std::cerr << "An error occurred while opening Arduino serial port at " 
+			<< arduino_port_name << ": " << error.what() << std::endl;
+		
+		return false;
+	}
+
+	return true;
+}
+
+// Send actual commands to the Arduino here
+void controller::write_to_arduino(std::string& message)
+{
+	if (arduino_serial_port.has_value())
+	{
+		// Terminate message with \n
+		if (message.back() != '\n')
+		{
+			message.append("\n");
+		}
+
+		asio::write(arduino_serial_port.value(), asio::buffer(message));
+	}
 }
 
 void controller::clear_command_queue()

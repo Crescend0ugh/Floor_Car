@@ -7,6 +7,7 @@
 #include <numbers>
 
 #include "vector.h"
+#include "asio.hpp"
 
 namespace command
 {
@@ -76,6 +77,10 @@ private:
 	command_context current_command_context;
 
 	std::queue<command::command> command_queue;
+	
+	std::optional<asio::serial_port> arduino_serial_port = std::nullopt;
+
+	void write_to_arduino(std::string& message);
 
 	// front left motor, front right motor, back left motor, back right motor
 
@@ -102,6 +107,8 @@ public:
 	float heading;
 
 	controller(uint32_t update_rate_ms = 0);
+
+	bool connect_to_arduino(asio::io_context& io);
 
 	void clear_command_queue();
 	void update();

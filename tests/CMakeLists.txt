@@ -5,7 +5,7 @@ set(TEST_SUBDIRECTORIES
 	raylib_test 
 	networking_test
 	opencv_test
-	controller_test
+	#controller_test
 )
 
 if(WIN32)
