@@ -50,7 +50,7 @@ void connection::read_loop()
             }
             else if (error == asio::error::eof) 
             {
-                std::cout << "session terminated" << std::endl;
+                std::cout << "Session terminated." << std::endl;
                 return;
             }
             else 
@@ -106,11 +106,9 @@ void server::accept()
         {
             if (!error) 
             {
-#if LOG
-                std::cout << "creating session on: "
+                std::cout << "Creating session on: "
                     << socket.remote_endpoint().address().to_string()
-                    << ":" << socket.remote_endpoint().port() << '\n';
-#endif
+                    << ":" << socket.remote_endpoint().port() << std::endl;
 
                 auto session = std::make_shared<connection>(std::move(socket));
                 register_connection(session);
@@ -119,7 +117,7 @@ void server::accept()
             }
             else 
             {
-                std::cout << "network error: " << error.message() << std::endl;
+                std::cout << "Network error: " << error.message() << std::endl;
             }
         }
     );
@@ -135,7 +133,6 @@ bool server::poll(received_data& data)
     std::vector<connection_ptr> active;
     {
         std::lock_guard<std::mutex> lock(mutex);
-
         for (auto& w : registered_connections)
         {
             if (auto c = w.lock())
@@ -143,7 +140,6 @@ bool server::poll(received_data& data)
                 active.push_back(c);
             }
         }
-           
     }
 
     std::list<bytes>* active_read_queue = nullptr;
@@ -162,14 +158,20 @@ bool server::poll(received_data& data)
 client::client(asio::io_context& io_context, std::string& ip_address, short port) : io::io((tcp::socket)io_context)
 {
     tcp::resolver resolver(io_context);
-    asio::connect(socket, resolver.resolve(ip_address, std::to_string(port)));
 
-    read_loop();
-}
+    asio::error_code error;
+    asio::connect(socket, resolver.resolve(ip_address, std::to_string(port)), error);
 
-client::~client()
-{
-    disconnect();
+    if (error)
+    {
+        is_connected = false;
+        std::cerr << "Connection error: " << error.message() << std::endl;
+    }
+    else
+    {
+        is_connected = true;
+        read_loop();
+    }
 }
 
 void client::read_loop()
@@ -197,7 +199,7 @@ void client::read_loop()
             }
             else if (error == asio::error::eof)
             {
-                std::cout << "session terminated" << std::endl;
+                std::cout << "Session terminated." << std::endl;
                 return;
             }
             else
@@ -233,6 +235,11 @@ void client::send_bytes(bytes data)
 
 void client::disconnect()
 {
+    if (!is_connected)
+    {
+        return;
+    }
+
     asio::error_code error; // This error doesn't matter
     socket.shutdown(tcp::socket::shutdown_both, error);
     socket.close();

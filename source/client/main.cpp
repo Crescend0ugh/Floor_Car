@@ -20,7 +20,7 @@ int main()
 {
     // If the Pi is connected to "nyu" WiFi, the IP is something that starts with "10.20"
     // Run "hostname -I" in a Pi terminal and use the IP address it gives you
-    std::string ip = "192.168.1.154"; //"192.168.1.154"; // "127.0.0.1"
+    std::string ip = "127.0.0.1"; // "127.0.0.1"
     asio::io_context io_context;
     network::client client(io_context, ip, 12345);
     std::thread thread([&io_context] {
@@ -57,9 +57,12 @@ int main()
             oss << "D";
         }
 
-        message m = {oss.str()};
-        //client.send(0, m);
-
+        if (!oss.str().empty())
+        {
+            message m = { oss.str() };
+            client.send(0, m);
+        }
+        
         while (client.poll(server_data))
         {
             switch (server_data.protocol_id)
@@ -85,4 +88,7 @@ int main()
     }
 
     CloseWindow();
+
+    thread.join();
+    client.disconnect();
 }

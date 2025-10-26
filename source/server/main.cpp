@@ -17,7 +17,7 @@
 #include <functional>
 
 // Delay between each object detection cycle
-const auto vision_interval = std::chrono::milliseconds(100);
+const auto vision_interval = std::chrono::milliseconds(50);
 
 // Convert cv::Mat to a string and processing_time to u16
 camera_frame serialize_detection_results(detection_results& results)
@@ -54,8 +54,6 @@ void run_vision(network::server& server, vision& vision, asio::steady_timer& vis
 {
     if (vision.is_enabled)
     {
-        std::cout << "Vision heartbeat" << std::endl;
-        // TODO: Also run on the other camera
         detection_results left_results = vision.detect_from_camera(0);
         detection_results right_results = vision.detect_from_camera(1);
 
@@ -106,7 +104,6 @@ int main(int argc, char* argv[]) {
     };
 
     network::received_data data;
-
     while (1)
     {
         vision.is_client_connected = server.get_client_count() > 0;
@@ -116,7 +113,7 @@ int main(int argc, char* argv[]) {
         {
             message m;
             network::deserialize(m, data);
-            std::cout << m.str;
+            std::cout << m.str << std::endl;
         }
     }
 }

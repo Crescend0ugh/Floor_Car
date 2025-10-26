@@ -82,8 +82,6 @@ private:
 
 	void write_to_arduino(std::string& message);
 
-	// front left motor, front right motor, back left motor, back right motor
-
 public:
 	remote_control_drive_state drive_state;
 	remote_control_steer_state steer_state;

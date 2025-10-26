@@ -69,7 +69,7 @@ namespace network
 				return false;
 			}
 
-			bytes received = std::move(read_queue.front());
+			bytes received(read_queue.front()); // I give up. Just copy the vector.
 			data.serialized_data = received;
 			data.protocol_id = static_cast<int>(data.serialized_data[0]);
 			read_queue.pop_front();
@@ -151,8 +151,9 @@ namespace network
 		void send_bytes(bytes data);
 
 	public:
+		bool is_connected;
+
 		client(asio::io_context& io_context, std::string& ip_address, short port);
-		~client();
 
 		void disconnect();
 
