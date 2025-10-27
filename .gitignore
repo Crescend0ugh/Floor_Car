@@ -3,3 +3,7 @@ build/
 
 out
 .vs
+
+content/calibration_inputs
+content/calibration_results
+content/camera_matrices

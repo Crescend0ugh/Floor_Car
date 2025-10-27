@@ -52,3 +52,6 @@ if(WIN32)
     target_compile_definitions(FloorCarClient PRIVATE ASIO_STANDALONE)
     target_link_libraries(FloorCarClient Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn)
 endif()
+
+add_executable(Calibration source/calibration/main.cpp)
+target_link_libraries(Calibration ${OpenCV_LIBS})
