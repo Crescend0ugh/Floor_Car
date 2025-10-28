@@ -54,8 +54,27 @@ void run_vision(network::server& server, vision& vision, asio::steady_timer& vis
 {
     if (vision.is_enabled)
     {
-        detection_results left_results = vision.detect_from_camera(0);
-        detection_results right_results = vision.detect_from_camera(1);
+        // Make sure the cameras grab frames at the same time, or as close to it as possible
+        bool left_succeeded = vision.grab_frame_from_camera(0);
+        bool right_succeeded = vision.grab_frame_from_camera(1);
+
+        detection_results left_results;
+        if (left_succeeded)
+        {
+            left_results = std::move(vision.detect_from_camera(0));
+        }
+        
+        detection_results right_results;
+        if (right_succeeded)
+        {
+            right_results = std::move(vision.detect_from_camera(1));
+        }
+
+        if (left_succeeded && right_succeeded)
+        {
+            // TODO: Estimate 3D positions of detection bounding box centers
+            // vision.estimate_3d_positions(...);
+        }
 
         // Send vision results to clients, if any are connected
         if (vision.is_client_connected)

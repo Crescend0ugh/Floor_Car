@@ -35,7 +35,11 @@ void remove_files_from_directory(std::filesystem::path path_to_directory)
 	}
 }
 
-void capture_calibration_inputs(int index)
+cv::Size board_size = cv::Size{ 9, 6 };
+int square_size_mm = 1; // CHANGE TO REAL SIZE
+
+// Get the intrinsic matrix of a single camera
+void calibrate(int index)
 {
 	cv::VideoCapture capture(index);
 	if (!capture.isOpened())
@@ -79,14 +83,7 @@ void capture_calibration_inputs(int index)
 
 	capture.release();
 	cv::destroyAllWindows();
-}
 
-cv::Size board_size = cv::Size{ 9, 6 };
-int square_size_mm = 1; // CHANGE TO REAL SIZE
-
-void calibrate(int index)
-{
-	std::filesystem::path calibration_inputs_path = get_content_directory("calibration_inputs");
 	std::filesystem::path calibration_results_path = get_content_directory("calibration_results");
 
 	// cam0 in cam0_img1
@@ -96,7 +93,7 @@ void calibrate(int index)
 	cv::Size image_size;
 
 	for (const auto& entry : std::filesystem::directory_iterator(calibration_inputs_path)) {
-		auto path = entry.path();
+		auto& path = entry.path();
 
 		if (path.filename().string().find(prefix) == std::string::npos)
 		{
@@ -156,7 +153,7 @@ void calibrate(int index)
 
 	cv::Mat camera_matrix = cv::Mat::eye(3, 3, CV_64F);
 	cv::Mat dist_coeffs, R, T;
-	
+
 	double rms = cv::calibrateCamera(object_points, image_points, image_size, camera_matrix, dist_coeffs, R, T);
 
 	std::cout << "Camera matrix:\n " << camera_matrix << std::endl;
@@ -165,11 +162,11 @@ void calibrate(int index)
 
 	// Write instrinsic matrix and coefficients to file
 	std::filesystem::path intrinsics_file_path = get_content_directory("camera_matrices") / std::format("intrinsics_{}.yml", index);
-	
+
 	cv::FileStorage intrinsics_file(intrinsics_file_path.string(), cv::FileStorage::WRITE);
 	if (intrinsics_file.isOpened())
 	{
-		intrinsics_file << "M" << camera_matrix << "D" << dist_coeffs << "image_size" << image_size << "objp" << object_points << "imgp" << image_points;
+		intrinsics_file << "M" << camera_matrix << "D" << dist_coeffs << "image_size" << image_size;
 		intrinsics_file.release();
 
 		std::cout << "\nWritten results to " << intrinsics_file_path.string() << std::endl;
@@ -180,9 +177,7 @@ void read_intrinsics(
 	int index,
 	cv::Mat& intrinsic_matrix, 
 	cv::Mat& dist_coeffs,
-	cv::Size& image_size,
-	std::vector<std::vector<cv::Point3f>>& object_points,
-	std::vector<std::vector<cv::Point2f>>& image_points
+	cv::Size& image_size
 )
 {
 	std::filesystem::path file_path = get_content_directory("camera_matrices") / std::format("intrinsics_{}.yml", index);
@@ -196,29 +191,166 @@ void read_intrinsics(
 	file["M"] >> intrinsic_matrix;
 	file["D"] >> dist_coeffs;
 	file["image_size"] >> image_size;
-	file["objp"] >> object_points;
-	file["imgp"] >> image_points;
 }
 
-void get_extrinsic_matrices(int left, int right)
+// Get the extrinsic matrices for a stereo pair of cameras
+void stereo_calibration(int left, int right, bool capture)
 {
+	std::filesystem::path synced_inputs_path = get_content_directory("stereo_calibration_inputs");
+	std::filesystem::path synced_results_path = get_content_directory("stereo_calibration_results");
+
+	if (capture)
+	{
+		cv::VideoCapture left_capture(left);
+		cv::VideoCapture right_capture(right);
+		if (!left_capture.isOpened() || !right_capture.isOpened())
+		{
+			std::cerr << "Unable to stereo calibrate: unable to open both cameras." << std::endl;
+			exit(1);
+		}
+
+		remove_files_from_directory(synced_inputs_path);
+		remove_files_from_directory(synced_results_path);
+
+		int pairs_saved = 0;
+
+		cv::Mat left_frame, right_frame;
+		while (left_capture.isOpened() && right_capture.isOpened())
+		{
+			left_capture.grab();
+			right_capture.grab();
+
+			left_capture.retrieve(left_frame);
+			right_capture.retrieve(right_frame);
+
+			if (left_frame.empty() || right_frame.empty())
+			{
+				std::cout << "Captured empty frame!" << std::endl;
+				break;
+			}
+
+			int key = cv::waitKey(10);
+			if (key == 27) // ESC to quit
+			{
+				break;
+			}
+			else if (key == 's' || key == 'S') // S to save image
+			{
+				std::string left_path = (synced_inputs_path / std::format("pair{}_cam{}.png", pairs_saved, left)).string();
+				std::string right_path = (synced_inputs_path / std::format("pair{}_cam{}.png", pairs_saved, right)).string();
+
+				cv::imwrite(left_path, left_frame);
+				cv::imwrite(right_path, right_frame);
+				std::cout << "Saved image pair: " << pairs_saved << std::endl;
+
+				++pairs_saved;
+			}
+
+			auto both_frames = std::vector<cv::Mat>{ left_frame, right_frame };
+			cv::Mat concat_frame;
+			cv::hconcat(both_frames, concat_frame);
+			cv::imshow("Frames", concat_frame);
+		}
+
+		left_capture.release();
+		right_capture.release();
+		cv::destroyAllWindows();
+
+		if (pairs_saved == 0)
+		{
+			std::cout << "No image pairs were captured. Quitting." << std::endl;
+			return;
+		}
+
+		std::cout << "Done capturing inputs from left and right cameras." << std::endl;
+	}
+	
+	int pair_count = 0;
+	{
+		int file_count = 0;
+		for (const auto& entry : std::filesystem::directory_iterator(synced_inputs_path)) {
+			if (std::filesystem::is_regular_file(entry.status())) {
+				file_count++;
+			}
+		}
+		pair_count = file_count / 2;
+	}
+
+	std::vector<std::vector<cv::Point2f>> left_image_points, right_image_points;
+
+	for (int i = 0; i < pair_count; ++i)
+	{
+		std::string left_filename = std::format("pair{}_cam{}.png", i, left);
+		std::string right_filename = std::format("pair{}_cam{}.png", i, right);
+		auto left_image = synced_inputs_path / left_filename;
+		auto right_image = synced_inputs_path / right_filename;
+
+		cv::Mat left_input = cv::imread(left_image.string());
+		cv::Mat right_input = cv::imread(right_image.string());
+
+		if (left_input.empty() || right_input.empty())
+		{
+			std::cerr << "Invalid image pair " << i << std::endl;
+			continue;
+		}
+
+		cv::Mat original_left = left_input; // Will keep its color
+		cv::cvtColor(left_input, left_input, cv::COLOR_BGR2GRAY); // Grayscaled
+
+		std::vector<cv::Point2f> left_corners;
+		int found_left = cv::findChessboardCorners(left_input, board_size, left_corners, cv::CALIB_CB_ADAPTIVE_THRESH | cv::CALIB_CB_NORMALIZE_IMAGE);
+
+		cv::Mat original_right = right_input; // Will keep its color
+		cv::cvtColor(right_input, right_input, cv::COLOR_BGR2GRAY); // Grayscaled
+
+		std::vector<cv::Point2f> right_corners;
+		int found_right = cv::findChessboardCorners(right_input, board_size, right_corners, cv::CALIB_CB_ADAPTIVE_THRESH | cv::CALIB_CB_NORMALIZE_IMAGE);
+
+		if (!found_left || !found_right)
+		{
+			std::cout << "Could not find chessboard corners in both images of pair " << i << std::endl;
+			continue;
+		}
+
+		cv::drawChessboardCorners(original_left, board_size, left_corners, found_left);
+		cv::drawChessboardCorners(original_right, board_size, right_corners, found_right);
+
+		left_image_points.push_back(std::move(left_corners));
+		right_image_points.push_back(std::move(right_corners));
+
+		// Save calibration results
+		cv::imwrite((synced_results_path / left_filename).string(), original_left);
+		cv::imwrite((synced_results_path / right_filename).string(), original_left);
+	}
+
+	std::vector<std::vector<cv::Point3f>> object_points;
+	object_points.resize(left_image_points.size());
+
+	// 3D positions of the chessboard corners
+	for (int i = 0; i < object_points.size(); ++i)
+	{
+		for (int j = 0; j < board_size.height; ++j)
+		{
+			for (int k = 0; k < board_size.width; ++k)
+			{
+				object_points[i].push_back(cv::Point3f(float(j * square_size_mm), float(k * square_size_mm), 0.0f));
+			}
+		}
+	}
+
 	// Assumed to be the same for each camera	
 	cv::Size image_size;
 
 	// Load data gathered from individual calibrations
 	cv::Mat left_intrinsics, left_dist_coeffs;
-	std::vector<std::vector<cv::Point3f>> left_object_points;
-	std::vector<std::vector<cv::Point2f>> left_image_points;
-	read_intrinsics(left, left_intrinsics, left_dist_coeffs, image_size, left_object_points, left_image_points);
+	read_intrinsics(left, left_intrinsics, left_dist_coeffs, image_size);
 
 	cv::Mat right_intrinsics, right_dist_coeffs;
-	std::vector<std::vector<cv::Point3f>> right_object_points;
-	std::vector<std::vector<cv::Point2f>> right_image_points;
-	read_intrinsics(right, right_intrinsics, right_dist_coeffs, image_size, right_object_points, right_image_points);
+	read_intrinsics(right, right_intrinsics, right_dist_coeffs, image_size);
 	
 	cv::Mat R, T, E, F;
 	double rms = cv::stereoCalibrate(
-		left_object_points,
+		object_points,
 		left_image_points,
 		right_image_points,
 		left_intrinsics,
@@ -240,7 +372,7 @@ void get_extrinsic_matrices(int left, int right)
 		cv::Mat dist_coeffs[2] = { left_dist_coeffs, right_dist_coeffs };
 		std::vector<cv::Vec3f> lines[2];
 
-		for (int i = 0; i < left_object_points.size(); ++i)
+		for (int i = 0; i < object_points.size(); ++i)
 		{
 			int npt = (int)image_points[0][i].size();
 			cv::Mat imgpt[2];
@@ -284,17 +416,19 @@ void get_extrinsic_matrices(int left, int right)
 		image_size
 	);
 
-	//cv::Mat left_maps[2];
-	//cv::initUndistortRectifyMap(left_intrinsics, left_dist_coeffs, R1, P1, image_size, CV_16SC2, left_maps[0], left_maps[1]);
+	cv::Mat left_map_x, left_map_y;
+	cv::initUndistortRectifyMap(left_intrinsics, left_dist_coeffs, R1, P1, image_size, CV_16SC2, left_map_x, left_map_y);
 
-	//cv::Mat right_maps[2];
-	//cv::initUndistortRectifyMap(right_intrinsics, right_dist_coeffs, R2, P2, image_size, CV_16SC2, right_maps[0], right_maps[1]);
+	cv::Mat right_map_x, right_map_y;
+	cv::initUndistortRectifyMap(right_intrinsics, right_dist_coeffs, R2, P2, image_size, CV_16SC2, right_map_x, right_map_y);
 
 	std::filesystem::path extrinsics_file_path = get_content_directory("camera_matrices") / "extrinsics.yml";
 	cv::FileStorage extrinsics_file(extrinsics_file_path.string(), cv::FileStorage::WRITE);
 	if (extrinsics_file.isOpened())
 	{
-		extrinsics_file << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q;
+		extrinsics_file << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q 
+			<< "MX1" << left_map_x << "MY1" << left_map_y << "MX2" << right_map_x << "MY2" << right_map_y;
+
 		extrinsics_file.release();
 
 		std::cout << "\nWritten results to " << extrinsics_file_path.string() << std::endl;
@@ -310,23 +444,16 @@ int main(int argc, char** argv)
 		{
 			remove_files_from_directory(get_content_directory("calibration_inputs"));
 			remove_files_from_directory(get_content_directory("calibration_results"));
+			remove_files_from_directory(get_content_directory("stereo_calibration_inputs"));
+			remove_files_from_directory(get_content_directory("stereo_calibration_results"));
 		}
 		else if (arg == "cleanall")
 		{
 			remove_files_from_directory(get_content_directory("calibration_inputs"));
 			remove_files_from_directory(get_content_directory("calibration_results"));
+			remove_files_from_directory(get_content_directory("stereo_calibration_inputs"));
+			remove_files_from_directory(get_content_directory("stereo_calibration_results"));
 			remove_files_from_directory(get_content_directory("camera_matrices"));
-		}
-		else if (arg == "capture")
-		{
-			if (argc < 3)
-			{
-				std::cerr << "Missing argument: camera_index" << std::endl;
-				exit(1);
-			}
-
-			std::string camera_id = argv[2];
-			capture_calibration_inputs(std::stoi(camera_id));
 		}
 		else if (arg == "calib")
 		{
@@ -349,7 +476,19 @@ int main(int argc, char** argv)
 
 			std::string camera_id_1 = argv[2];
 			std::string camera_id_2 = argv[3];
-			get_extrinsic_matrices(std::stoi(camera_id_1), std::stoi(camera_id_2));
+			stereo_calibration(std::stoi(camera_id_1), std::stoi(camera_id_2), false);
+		}
+		else if (arg == "scalibc")
+		{
+			if (argc < 4)
+			{
+				std::cerr << "Need arguments: camera_index_1, camera_index_2" << std::endl;
+				exit(1);
+			}
+
+			std::string camera_id_1 = argv[2];
+			std::string camera_id_2 = argv[3];
+			stereo_calibration(std::stoi(camera_id_1), std::stoi(camera_id_2), true);
 		}
 	}
 	else
@@ -357,9 +496,9 @@ int main(int argc, char** argv)
 		std::cout << "[Usage]" << std::endl;
 		std::cout << "clean: Removes all images in the calibration_inputs and calibration_results directories" << std::endl;
 		std::cout << "cleanall: Removes all images and calibration result .yml files" << std::endl;
-		std::cout << "capture [camera_index]: Capture calibration input images for camera" << std::endl;
 		std::cout << "calib [camera_index]: Find camera's intrinsic matrix using input images" << std::endl;
-		std::cout << "scalib [camera_index_1] [camera_index_2]: Stereo calibrate two cameras" << std::endl;
+		std::cout << "scalib [left_camera_index] [right_camera_index]: Stereo calibrate two cameras with saved captures" << std::endl;
+		std::cout << "scalibc [left_camera_index] [right_camera_index]: Take synchronized captures and stereo calibrate two cameras" << std::endl;
 	}
 	
 	return 0;
