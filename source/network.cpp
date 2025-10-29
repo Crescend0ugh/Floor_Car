@@ -15,7 +15,8 @@ void connection::start()
 
 void connection::write_loop()
 {
-    asio::async_write(socket, asio::buffer(send_queue.front()), [this, self = shared_from_this()](asio::error_code error, size_t bytes_written) 
+    asio::async_write(socket, asio::buffer(send_queue.front()), 
+        [this, self = shared_from_this()](asio::error_code error, size_t bytes_written) 
         {
             if (!error && dequeue()) 
             {
@@ -27,11 +28,12 @@ void connection::write_loop()
 
 void connection::read_loop()
 {
-    asio::async_read(socket, buffer, asio::transfer_exactly(sizeof(size_t)), [this, self = shared_from_this()](asio::error_code error, size_t bytes_read)
+    asio::async_read(socket, buffer, asio::transfer_exactly(sizeof(size_t)), 
+        [this, self = shared_from_this()](asio::error_code error, size_t bytes_read)
         {
             if (!error) 
             {
-                // Read paylod size
+                // Read payload size
                 size_t payload_size = 0;
                 std::memcpy(&payload_size, buffer.data().data(), sizeof(payload_size));
 
@@ -102,7 +104,8 @@ size_t server::for_each_active(F f)
 
 void server::accept()
 {
-    acceptor.async_accept([this](asio::error_code error, tcp::socket socket) 
+    acceptor.async_accept(
+        [this](asio::error_code error, tcp::socket socket) 
         {
             if (!error) 
             {
@@ -155,32 +158,56 @@ bool server::poll(received_data& data)
     return false;
 }
 
-client::client(asio::io_context& io_context, std::string& ip_address, short port) : io::io((tcp::socket)io_context)
+client::client(asio::io_context& io_context, std::string& ip_address, short port) : 
+    io::io((tcp::socket)io_context), 
+    resolver(io_context),
+    retry_timer(io_context, std::chrono::seconds(3)),
+    ip(ip_address),
+    port(std::to_string(port))
 {
-    tcp::resolver resolver(io_context);
+    connect_loop();
+}
 
-    asio::error_code error;
-    asio::connect(socket, resolver.resolve(ip_address, std::to_string(port)), error);
+void client::connect_loop()
+{
+    tcp::resolver::results_type endpoints = resolver.resolve(ip, port);
 
-    if (error)
-    {
-        is_connected = false;
-        std::cerr << "Connection error: " << error.message() << std::endl;
-    }
-    else
-    {
-        is_connected = true;
-        read_loop();
-    }
+    asio::async_connect(socket, endpoints,
+        [&, this](const asio::error_code& error, const asio::ip::tcp::endpoint& /*endpoint*/) 
+        {
+            if (error)
+            {
+                is_connected = false;
+
+                std::cerr << "Connection error: " << error.message() << std::endl;
+                std::cerr << "Scheduling reconnect in 3 seconds" << std::endl;
+
+                socket.close();
+
+                retry_timer.expires_at(std::chrono::steady_clock::now() + std::chrono::seconds(3));
+                retry_timer.async_wait(
+                    [&, this](const asio::error_code& error)
+                    {
+                        connect_loop();
+                    });
+            }
+            else
+            {
+                is_connected = true;
+                read_loop();
+            }
+        }
+    );
 }
 
 void client::read_loop()
 {
-    asio::async_read(socket, buffer, asio::transfer_exactly(sizeof(size_t)), [this](asio::error_code error, size_t bytes_read) 
+    asio::async_read(socket, buffer, asio::transfer_exactly(sizeof(size_t)), 
+        [this](asio::error_code error, size_t bytes_read) 
         {
             if (!error)
             {
-                // Read paylod size
+                // Read payload size
                 size_t payload_size = 0;
                 std::memcpy(&payload_size, buffer.data().data(), sizeof(payload_size));
 
@@ -197,13 +224,19 @@ void client::read_loop()
                 buffer.consume(buffer.size());
                 read_loop();
             }
-            else if (error == asio::error::eof)
+            else 
             {
-                std::cout << "Session terminated." << std::endl;
-                return;
-            }
-            else
-            {
+                is_connected = false;
+                if (error == asio::error::eof)
+                {
+                    std::cout << "Session terminated." << std::endl;
+                }
+                else
+                {
+                    std::cout << "Read error: " << error.message() << std::endl;
+                }
+
+                connect_loop();
                 return;
             }
         }
@@ -212,7 +245,8 @@ void client::read_loop()
 
 void client::write_loop()
 {
-    asio::async_write(socket, asio::buffer(send_queue.front()), [this](asio::error_code error, size_t bytes_written) 
+    asio::async_write(socket, asio::buffer(send_queue.front()), 
+        [this](asio::error_code error, size_t bytes_written) 
         {
             if (!error && dequeue()) {
                 write_loop();

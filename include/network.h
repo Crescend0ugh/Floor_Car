@@ -145,13 +145,19 @@ namespace network
 	class client : public io
 	{
 	private:
+		tcp::resolver resolver;
+		std::string ip;
+		std::string port;
+
+		void connect_loop();
 		void write_loop() override;
 		void read_loop() override;
 
 		void send_bytes(bytes data);
 
 	public:
-		bool is_connected;
+		asio::steady_timer retry_timer;
+		bool is_connected = false;
 
 		client(asio::io_context& io_context, std::string& ip_address, short port);
 

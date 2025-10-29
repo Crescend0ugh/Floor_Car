@@ -119,3 +119,12 @@ void camera_feed_visualizer::draw()
         panel.draw();
     }
 }
+
+void camera_feed_visualizer::clear()
+{
+    for (camera_feed_panel& panel : panels)
+    {
+        panel.frame = std::nullopt;
+        panel.frame_count = 0;
+    }
+}

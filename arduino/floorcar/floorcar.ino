@@ -1,5 +1,3 @@
-const unsigned long update_rate_ms = 16;
-
 enum direction
 {
     backward,
@@ -90,6 +88,60 @@ struct motor_driver
 
 motor_driver driver;
 
+const unsigned long update_rate_ms = 16;
+
+const unsigned char imu_data_header = 0x01;
+const unsigned char microphone_input_header = 0x02;
+
+unsigned long last_imu_read_time = 0;
+
+void send_imu_data(float a_x, float a_y, float a_z, float g_x, float g_y, float g_z)
+{
+    unsigned long current_time = millis();
+    unsigned long delta_time = current_time - last_imu_read_time;
+
+    last_imu_read_time = current_time;
+
+    // [payload size in bytes] [message type] [delta time] [acceleration vector3] [angular velocity vector3]
+    size_t packet_size = sizeof(size_t) + sizeof(unsigned char) + sizeof(unsigned long) + 6 * sizeof(float);
+    unsigned char buffer[packet_size];
+    unsigned char* cursor = buffer;
+
+    size_t payload_size = packet_size - sizeof(size_t);
+    memcpy(cursor, &payload_size, sizeof(size_t));
+    cursor += sizeof(size_t);
+
+    // Write 0x01 so the Pi knows that this is IMU data as opposed to microphone analog input
+    memcpy(cursor, &imu_data_header, sizeof(unsigned char));
+    cursor += sizeof(unsigned char);
+
+    // Write delta time for position and velocity estimation
+    memcpy(cursor, &delta_time, sizeof(unsigned long));
+    cursor += sizeof(unsigned long);
+
+    // Write accleration values
+    memcpy(cursor, &a_x, sizeof(float));
+    cursor += sizeof(float);
+
+    memcpy(cursor, &a_y, sizeof(float));
+    cursor += sizeof(float);
+
+    memcpy(cursor, &a_z, sizeof(float));
+    cursor += sizeof(float);
+
+    // Finally, write angular velocity values
+    memcpy(cursor, &g_x, sizeof(float));
+    cursor += sizeof(float);
+
+    memcpy(cursor, &g_y, sizeof(float));
+    cursor += sizeof(float);
+
+    memcpy(cursor, &g_z, sizeof(float));
+    cursor += sizeof(float);
+
+    Serial.write(buffer, sizeof(buffer));
+}
+
 void setup() 
 {
     Serial.begin(9600);
@@ -103,6 +155,12 @@ void loop()
 {
     //driver.set_direction(left | right, forward);
     //driver.set_speed(left | right, 255);
+
+    float a_x, a_y, a_z;
+    float g_x, g_y, g_z; 
+    // TODO: Read IMU sensor data into above variables (however it's done)
+
+    send_imu_data(a_x, a_y, a_z, g_x, g_y, g_z);
 
     // Read commands from Raspberry Pi
     while (Serial.available() > 0)

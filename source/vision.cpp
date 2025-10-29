@@ -5,10 +5,7 @@
 
 vision::vision()
 {
-    left_camera_detections = new std::vector<detection>();
-    right_camera_detections = new std::vector<detection>();
-
-    initialize_cameras();
+    initialize_camera();
 }
 
 bool vision::load_camera_calibration_info()
@@ -23,23 +20,25 @@ bool vision::load_camera_calibration_info()
         return false;
     }
 
-    cv::FileStorage extrinsics_file((camera_matrices_path / "extrinsics.yml").string(), cv::FileStorage::READ);
-    if (extrinsics_file.isOpened())
+    // TODO: Don't know if these will be in YML
+    cv::FileStorage extrinsics((camera_matrices_path / "extrinsics.yml").string(), cv::FileStorage::READ);
+    if (extrinsics.isOpened())
     {
-        extrinsics_file["P1"] >> left_proj_mat;
-        extrinsics_file["P2"] >> right_proj_mat;
+        // TODO
+        // extrinsics["RT"] >> lidar_to_camera_transform;
+        // MAKE THIS A 4x4 MATRIX IF IT ISN'T !!!
     }
     else
     {
-        std::cerr << "Could not open extrinsics.yml for stereo calibration parameters" << std::endl;
+        std::cerr << "Could not open extrinsics.yml" << std::endl;
         return false;
     }
 
-    cv::FileStorage left_intrinsics_file((camera_matrices_path / "intrinsics_0.yml").string(), cv::FileStorage::READ);
-    if (left_intrinsics_file.isOpened())
+    cv::FileStorage intrinsics((camera_matrices_path / "intrinsics_0.yml").string(), cv::FileStorage::READ);
+    if (intrinsics.isOpened())
     {
-        left_intrinsics_file["M"] >> left_camera_mat;
-        left_intrinsics_file["D"] >> left_dist_coeffs;
+        intrinsics["M"] >> camera_mat;
+        intrinsics["D"] >> dist_coeffs;
     }
     else
     {
@@ -47,132 +46,126 @@ bool vision::load_camera_calibration_info()
         return false;
     }
 
-    cv::FileStorage right_intrinsics_file((camera_matrices_path / "intrinsics_2.yml").string(), cv::FileStorage::READ);
-    if (right_intrinsics_file.isOpened())
-    {
-        right_intrinsics_file["M"] >> right_camera_mat;
-        right_intrinsics_file["D"] >> right_dist_coeffs;
-    }
-    else
-    {
-        std::cerr << "Could not open intrinsics_2.yml to get the right camera's intrinsic matrix" << std::endl;
-        return false;
-    }
-
     return true;
 }
 
-bool vision::initialize_cameras()
+bool vision::initialize_camera()
 {
-    left_camera = cv::VideoCapture(0);
+    capture = cv::VideoCapture(0);
     
-    if (!left_camera.value().isOpened())
+    if (!capture.isOpened())
     {
-        std::cerr << "Warning: Could not find or open camera 0 (left)." << std::endl;
-        left_camera = std::nullopt;
-    }
-   
-    // TODO: Figure out which numbers to use for the constructor
-#ifdef RPI_UBUNTU
-    right_camera = cv::VideoCapture(2);
-    if (!right_camera.value().isOpened())
-    {
-        std::cerr << "Warning: Could not find or open camera 1 (right)" << std::endl;
-        right_camera = std::nullopt;
-    }
-#endif
-
-    if (!left_camera && !right_camera)
-    {
-        std::cerr << "Warning: Could not find or open both left and right cameras. Vision will be disabled." << std::endl;
+        std::cerr << "Warning: Could not find or open camera 0." << std::endl;
         is_enabled = false;
-    }
-    else
-    { // We can run vision with one or two cameras active
-        is_enabled = true;
     }
 
 #ifdef RPI_UBUNTU
     calibration_info_loaded = load_camera_calibration_info();
+
+    if (!calibration_info_loaded)
+    {
+        std::cerr << "Warning: Unable to load necessary calibration data." << std::endl;
+        is_enabled = false;
+    }
 #endif
 
     return is_enabled;
 }
 
-void vision::estimate_3d_positions(
-    const std::vector<cv::Vec2d>& left_image_points, 
-    const std::vector<cv::Vec2d>& right_image_points,
-    std::vector<maid::vector3d>& results
-)
+void vision::estimate_detection_3d_bounds(const std::vector<cv::Vec3d>& lidar_point_cloud)
 {
-    if (!calibration_info_loaded)
+    std::vector<cv::Point2d> corresponding_image_points;
+    corresponding_image_points.resize(lidar_point_cloud.size());
+
+    // Create mapping from 3D lidar points to 2D image points
+    for (int i = 0; i < lidar_point_cloud.size(); ++i)
     {
-        std::cerr << "Warning: Unable to estimate 3D positions without calibration info" << std::endl;
-        return;
+        auto& point = lidar_point_cloud[i];
+
+        // Convert to 4D row vector
+        cv::Mat homogeneous_point = (cv::Mat_<double>(4, 1) << point[0], point[1], point[2], 1.0);
+
+        // Transform world (lidar) space to camera space
+        cv::Mat camera_space_homogeneous_point = homogeneous_point * lidar_to_camera_transform;
+
+        // Perspective divide into 3D
+        double w = camera_space_homogeneous_point.at<double>(3, 0);
+
+        cv::Mat camera_space_point = (cv::Mat_<double>(3, 1) << 
+            camera_space_homogeneous_point.at<double>(0, 0) / w, 
+            camera_space_homogeneous_point.at<double>(1, 0) / w,
+            camera_space_homogeneous_point.at<double>(2, 0) / w
+        );
+
+        // Camera space to image plane
+        cv::Mat image_space_homogeneous_point = camera_space_point * camera_mat;
+
+        // Perspective divide into 2D
+        w = image_space_homogeneous_point.at<double>(2, 0);
+        
+        cv::Mat image_space_point = (cv::Mat_<double>(2, 1) <<
+            image_space_homogeneous_point.at<double>(0, 0) / w,
+            image_space_homogeneous_point.at<double>(1, 0) / w
+        );
+
+        corresponding_image_points[i] = image_space_point.reshape(1, 1).at<cv::Point2d>(0, 0);
     }
 
-    std::vector<cv::Point2f> left_undistorted_points, right_undistorted_points;
-    cv::undistortPoints(left_image_points, left_undistorted_points, left_camera_mat, left_dist_coeffs);
-    cv::undistortPoints(right_image_points, right_undistorted_points, right_camera_mat, right_dist_coeffs);
+    std::vector<std::vector<cv::Vec3d>> lidar_points_in_bboxes;
+    lidar_points_in_bboxes.resize(detections.size());
 
-    // TODO: If P1 and P2 don't work as projection matrices, compute them manually with extrinsic R and T
-    cv::Mat homogeneous_points;
-    cv::triangulatePoints(left_proj_mat, right_proj_mat, left_undistorted_points, right_undistorted_points, homogeneous_points);
+    for (int detection_id = 0; detection_id < detections.size(); ++detection_id)
+    {
+        cv::Rect bounds = detections[detection_id].rect;
 
-    for (int i = 0; i < homogeneous_points.cols; ++i) {
-        cv::Vec4d point = homogeneous_points.col(i);
-        double x = point[0] / point[3];
-        double y = point[1] / point[3];
-        double z = point[2] / point[3];
+        for (int i = 0; i < corresponding_image_points.size(); ++i)
+        {
+            if (!bounds.contains(corresponding_image_points[i]))
+            {
+                continue;
+            }
 
-        // std::cout << "3D Point " << i << ": (" << x << ", " << y << ", " << z << ")" << std::endl;
-        results.emplace_back(x, y, z);
+            lidar_points_in_bboxes[i].push_back(lidar_point_cloud[i]);
+        }
+    }
+
+    for (int i = 0; i < lidar_points_in_bboxes.size(); ++i)
+    {
+
     }
 }
 
-bool vision::grab_frame_from_camera(int camera_id)
+bool vision::grab_frame()
 {
-    std::optional<cv::VideoCapture> which_camera = camera_id ? right_camera : left_camera;
-
-    // This camera is inactive
-    if (!which_camera.has_value())
+    if (!is_enabled)
     {
-        std::cerr << "Warning: Tried to capture from inactive camera (" << camera_id << ")" << std::endl;
+        std::cerr << "Warning: Tried to grab a frame while camera is disabled." << std::endl;
         return false;
     }
 
-    return which_camera.value().grab();
+    return capture.grab();
 }
 
-detection_results vision::detect_from_camera(int camera_id)
+detection_results vision::detect_from_camera()
 {
-    cv::Mat& frame = camera_id ? right_camera_frame : left_camera_frame;
-    std::vector<detection>& detections = camera_id ? *right_camera_detections : *left_camera_detections;
     detections.clear();
 
     detection_results results;
-    results.camera_id = camera_id;
+    results.camera_id = 0;
     results.detections = &detections;
 
-    std::optional<cv::VideoCapture> which_camera = camera_id ? right_camera : left_camera;
+    capture.retrieve(camera_frame);
 
-    cv::VideoCapture& camera = which_camera.value();
-
-    camera.retrieve(frame);
-
-    if (frame.empty()) 
+    if (camera_frame.empty())
     {
-        std::cerr << "Warning: Captured empty frame from camera (" << camera_id << ")" << std::endl;
-        which_camera = std::nullopt; // Disable the camera because it's not working?
+        std::cerr << "Warning: Captured empty frame from camera" << std::endl;
         return results;
     }
 
     // These timestamps are totally unneeded if running without a client
     // But their effects on performance are probably negligible
     auto start_time = std::chrono::high_resolution_clock::now();
-
-    yolo.detect(frame, detections);
-
+    yolo.detect(camera_frame, detections);
     auto end_time = std::chrono::high_resolution_clock::now();
 
     // Don't do this extra work if no clients are connected
@@ -181,7 +174,7 @@ detection_results vision::detect_from_camera(int camera_id)
         auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
         cv::Mat annotated = annotate_detections(
-            frame, 
+            camera_frame,
             detections,
             processing_time
         );

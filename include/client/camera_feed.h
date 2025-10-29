@@ -33,4 +33,5 @@ public:
     void create_feed(int id, int x, int y, int w, int h);
     void load(camera_frame& frame);
     void draw();
+    void clear();
 };

@@ -54,24 +54,12 @@ void run_vision(network::server& server, vision& vision, asio::steady_timer& vis
 {
     if (vision.is_enabled)
     {
-        // Make sure the cameras grab frames at the same time, or as close to it as possible
-        bool left_succeeded = vision.grab_frame_from_camera(0);
-        bool right_succeeded = vision.grab_frame_from_camera(1);
-
-        detection_results left_results;
-        if (left_succeeded)
-        {
-            left_results = std::move(vision.detect_from_camera(0));
-        }
+        bool succeeded = vision.grab_frame();
+        detection_results results;
         
-        detection_results right_results;
-        if (right_succeeded)
+        if (succeeded)
         {
-            right_results = std::move(vision.detect_from_camera(1));
-        }
-
-        if (left_succeeded && right_succeeded)
-        {
+            results = std::move(vision.detect_from_camera());
             // TODO: Estimate 3D positions of detection bounding box centers
             // vision.estimate_3d_positions(...);
         }
@@ -79,14 +67,9 @@ void run_vision(network::server& server, vision& vision, asio::steady_timer& vis
         // Send vision results to clients, if any are connected
         if (vision.is_client_connected)
         {
-            if (left_results.annotated_image.has_value())
+            if (results.annotated_image.has_value())
             {
-                auto serialized = serialize_detection_results(left_results);
-                server.send(protocol::camera_feed, serialized);
-            }
-            if (right_results.annotated_image.has_value())
-            {
-                auto serialized = serialize_detection_results(right_results);
+                auto serialized = serialize_detection_results(results);
                 server.send(protocol::camera_feed, serialized);
             }
         }
@@ -116,8 +99,8 @@ int main(int argc, char* argv[]) {
         std::ref(vision_timer)
     ));
 
-    controller controller;
-    if (!controller.connect_to_arduino(io_context))
+    controller controller(io_context);
+    if (!controller.arduino_serial.is_connected())
     {
         std::cerr << "||| Warning |||: Failed to connect to Arduino UNO" << std::endl;
     };

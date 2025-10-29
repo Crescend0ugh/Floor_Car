@@ -15,7 +15,7 @@ static float get_signed_angle(const float target_angle, const float start_angle)
 	return angle;
 }
 
-controller::controller(uint32_t update_rate_ms) :
+controller::controller(asio::io_context& io, uint32_t update_rate_ms) :
 	drive_state(remote_control_drive_state::not_driving),
 	steer_state(remote_control_steer_state::not_steering),
 	is_remote_controlled(false),
@@ -26,60 +26,9 @@ controller::controller(uint32_t update_rate_ms) :
 	position(maid::vector3f()),
 	velocity(maid::vector3f()),
 	heading(0.0f),
-	angular_velocity(maid::vector3f())
+	angular_velocity(maid::vector3f()),
+	arduino_serial(io)
 {
-}
-
-bool controller::connect_to_arduino(asio::io_context& io)
-{
-
-#ifdef RPI_UBUNTU
-	std::string arduino_port_name = "/dev/ttyUSB0";
-#else
-	std::string arduino_port_name = "COM3"; // Windows USB (CHANGE TO THE ONE THE ARDUINO IDE SAYS IT'S USING)
-#endif
-	
-	// Close the Arduino IDE serial monitor or this won't work!
-	try
-	{
-		arduino_serial_port = asio::serial_port(io, arduino_port_name);
-
-		asio::serial_port& port = arduino_serial_port.value();
-
-		port.set_option(asio::serial_port_base::baud_rate(9600));
-		port.set_option(asio::serial_port_base::character_size(8));
-		port.set_option(asio::serial_port_base::parity(asio::serial_port_base::parity::none));
-		port.set_option(asio::serial_port_base::stop_bits(asio::serial_port_base::stop_bits::one));
-		port.set_option(asio::serial_port_base::flow_control(asio::serial_port_base::flow_control::none));
-
-		std::cout << "Opened Arduino serial port successfully!" << std::endl;
-	}
-	catch (const asio::system_error& error)
-	{
-		arduino_serial_port = std::nullopt;
-
-		std::cerr << "An error occurred while opening Arduino serial port at " 
-			<< arduino_port_name << ": " << error.what() << std::endl;
-		
-		return false;
-	}
-
-	return true;
-}
-
-// Send actual commands to the Arduino here
-void controller::write_to_arduino(std::string& message)
-{
-	if (arduino_serial_port.has_value())
-	{
-		// Terminate message with \n
-		if (message.back() != '\n')
-		{
-			message.append("\n");
-		}
-
-		asio::write(arduino_serial_port.value(), asio::buffer(message));
-	}
 }
 
 void controller::clear_command_queue()
@@ -105,12 +54,22 @@ void controller::update()
 	previous_update_time = current_time;
 
 	// Update acceleration and angular velocity here, possibly (they're public, so it's not necessary here)
+	std::optional<imu_data> imu_option = arduino_serial.read_imu_data();
+	if (imu_option.has_value())
+	{
+		imu_data& data = imu_option.value();
 
-	// Estimate position, velocity, orientation
-	velocity += acceleration * delta_time;
-	position += velocity * delta_time;
+		acceleration.x = data.a_x;
+		acceleration.y = data.a_y;
+		acceleration.z = data.a_z;
 
-	// orientation += angular_velocity as quaternion * delta_time
+		// Estimate position and velocity using Euler's method
+		velocity += acceleration * data.delta_time;
+		position += velocity * data.delta_time;
+
+		// Read angular velocity
+		// orientation += angular_velocity as quaternion * delta_time
+	}
 
 	// Get next command
 	if (!current_command.has_value() && !command_queue.empty())

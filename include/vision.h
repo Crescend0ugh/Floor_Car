@@ -31,25 +31,15 @@ struct detection_results_3d
 class vision
 {
 private:
-	std::optional<cv::VideoCapture> left_camera = std::nullopt;
-	cv::Mat left_camera_frame;
-
-	std::optional<cv::VideoCapture> right_camera = std::nullopt;
-	cv::Mat right_camera_frame;
-
 	yolo_model yolo;
 
-	// Intrinsic matrices for left and right cameras
-	cv::Mat left_camera_mat;
-	cv::Mat right_camera_mat;
+	cv::Mat camera_mat; // Camera's intrinsic matrix
+	cv::Mat dist_coeffs; // Camera's distortion coefficients
+	cv::Mat lidar_to_camera_transform; // Obtained from calibration
 
-	// Distortion coefficients for left and right cameras
-	cv::Mat left_dist_coeffs;
-	cv::Mat right_dist_coeffs;
+	cv::VideoCapture capture;
+	cv::Mat camera_frame;
 
-	// Projection matrices for left and right cameras
-	cv::Mat left_proj_mat; 
-	cv::Mat right_proj_mat;
 	bool calibration_info_loaded = false;
 
 	bool load_camera_calibration_info();
@@ -58,22 +48,15 @@ public:
 	bool is_client_connected = false;
 	bool is_enabled = true;
 
-	std::vector<detection>* left_camera_detections;
-	std::vector<detection>* right_camera_detections;
-	std::vector<detection_results_3d> detections_3d;
+	std::vector<detection> detections;
 
 	vision();
-	bool initialize_cameras();
-	void estimate_3d_positions(
-		const std::vector<cv::Vec2d>& left_image_points,
-		const std::vector<cv::Vec2d>& right_image_points,
-		std::vector<maid::vector3d>& results
-	);
+	bool initialize_camera();
 
-	// 0 = left camera, 1 = right camera
+	void estimate_detection_3d_bounds(const std::vector<cv::Vec3d>& lidar_point_cloud);
 
-	bool grab_frame_from_camera(int camera_id);
+	bool grab_frame();
 
 	// Call AFTER grab_frame_from_camera
-	detection_results detect_from_camera(int camera_id);
+	detection_results detect_from_camera();
 };

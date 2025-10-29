@@ -16,26 +16,28 @@
 #include <algorithm>
 #include <sstream>
 
+// If the Pi is connected to "nyu" WiFi, the IP is something that starts with "10.20"
+// Run "hostname -I" in a Pi terminal and use the IP address it gives you
+std::string ip = "127.0.0.1"; // "127.0.0.1"
+short port = 12345;
+
 int main()
 {
-    // If the Pi is connected to "nyu" WiFi, the IP is something that starts with "10.20"
-    // Run "hostname -I" in a Pi terminal and use the IP address it gives you
-    std::string ip = "127.0.0.1"; // "127.0.0.1"
-    asio::io_context io_context;
-    network::client client(io_context, ip, 12345);
-    std::thread thread([&io_context] {
-        io_context.run();
-    });
-
-    network::received_data server_data;
-
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(0, 0, "Client Window");
     SetWindowSize(GetScreenWidth() / 2, GetScreenHeight() / 2);
     SetWindowPosition(GetScreenWidth() / 2, GetScreenHeight() / 2);
     SetTargetFPS(60);
 
-    camera_feed_visualizer camera_feeds(2);
+    asio::io_context io_context;
+    network::client client(io_context, ip, port);
+    std::thread thread([&io_context] {
+        io_context.run();
+    });
+
+    network::received_data server_data;
+
+    camera_feed_visualizer camera_feed_visualizer(1);
    
     while (!WindowShouldClose())
     {
@@ -72,7 +74,7 @@ int main()
                 camera_frame frame;
                 network::deserialize(frame, server_data);
 
-                camera_feeds.load(frame);
+                camera_feed_visualizer.load(frame);
             }
             }
         }
@@ -80,9 +82,27 @@ int main()
         BeginDrawing();
         ClearBackground(WHITE);
 
-        camera_feeds.create_feed(0, GetScreenWidth() / 2, 0, GetScreenWidth() / 2, GetScreenHeight() / 2); // Left camera
-        camera_feeds.create_feed(1, GetScreenWidth() / 2, GetScreenHeight() / 2, GetScreenWidth() / 2, GetScreenHeight() / 2); // Right camera
-        camera_feeds.draw();
+        if (!client.is_connected)
+        {
+            DrawText(TextFormat("CONNECTING TO %s:%d ...", ip.c_str(), port), 50, 50, 50, RED);
+
+            // This can be negative because resolving the endpoints blocks
+            auto time_till_retry = std::chrono::duration_cast<std::chrono::seconds>(client.retry_timer.expiry() - std::chrono::steady_clock::now());
+
+            DrawText(
+                TextFormat("Retrying connection in %s", 
+                    std::format("{}", std::max(time_till_retry, std::chrono::seconds(0))).c_str()
+                ),
+                50, 120, 50, GREEN
+            );
+
+            camera_feed_visualizer.clear();
+        }
+        else
+        {
+            camera_feed_visualizer.create_feed(0, GetScreenWidth() / 2, 0, GetScreenWidth() / 2, GetScreenHeight() / 2);
+            camera_feed_visualizer.draw();
+        }
 
         EndDrawing();
     }

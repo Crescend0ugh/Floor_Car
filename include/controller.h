@@ -7,6 +7,7 @@
 #include <numbers>
 
 #include "vector.h"
+#include "arduino_serial.h"
 #include "asio.hpp"
 
 namespace command
@@ -73,6 +74,8 @@ private:
 	std::chrono::time_point<std::chrono::steady_clock> next_update_time;
 	std::chrono::time_point<std::chrono::steady_clock> previous_update_time;
 
+	std::chrono::time_point<std::chrono::steady_clock> previous_imu_read_time;
+
 	std::optional<command::command> current_command = std::nullopt;
 	command_context current_command_context;
 
@@ -80,11 +83,14 @@ private:
 	
 	std::optional<asio::serial_port> arduino_serial_port = std::nullopt;
 
-	void write_to_arduino(std::string& message);
+	void read_from_arduino();
 
 public:
+	class arduino_serial arduino_serial;
+
 	remote_control_drive_state drive_state;
 	remote_control_steer_state steer_state;
+
 	bool is_remote_controlled;
 
 	// Read from the gyroscope's accelerometer
@@ -104,9 +110,7 @@ public:
 	// -179 to 180 degrees
 	float heading;
 
-	controller(uint32_t update_rate_ms = 0);
-
-	bool connect_to_arduino(asio::io_context& io);
+	controller(asio::io_context& io, uint32_t update_rate_ms = 0);
 
 	void clear_command_queue();
 	void update();
