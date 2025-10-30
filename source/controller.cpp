@@ -1,4 +1,5 @@
 #include "controller.h"
+#include "zpp_bits.h"
 
 using namespace std::chrono_literals;
 
@@ -15,18 +16,12 @@ static float get_signed_angle(const float target_angle, const float start_angle)
 	return angle;
 }
 
-controller::controller(asio::io_context& io, uint32_t update_rate_ms) :
+controller::controller(asio::io_context& io) :
 	drive_state(remote_control_drive_state::not_driving),
 	steer_state(remote_control_steer_state::not_steering),
 	is_remote_controlled(false),
-	update_rate(std::chrono::milliseconds(update_rate_ms)),
-	next_update_time(std::chrono::seconds(0)),
-	previous_update_time(std::chrono::seconds(0)),
-	acceleration(maid::vector3f()),
 	position(maid::vector3f()),
-	velocity(maid::vector3f()),
 	heading(0.0f),
-	angular_velocity(maid::vector3f()),
 	arduino_serial(io)
 {
 }
@@ -39,36 +34,26 @@ void controller::clear_command_queue()
 	}
 }
 
+void controller::send_command_to_arduino(command::command command_to_send)
+{
+	std::string serialized;
+	zpp::bits::out out(serialized);
+	// Amazing! It handles std::variant perfectly!
+	out(command_to_send).or_throw();
+
+	arduino_serial.write(serialized);
+}
+
 void controller::update()
 {
 	auto current_time = std::chrono::steady_clock::now();
 
-	if (update_rate > 0ms && current_time < next_update_time)
-	{
-		return;
-	}
-
-	auto delta_time = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(current_time - previous_update_time).count() / 1000.0f;
-
-	next_update_time = current_time + update_rate;
-	previous_update_time = current_time;
-
-	// Update acceleration and angular velocity here, possibly (they're public, so it's not necessary here)
 	std::optional<imu_data> imu_option = arduino_serial.read_imu_data();
 	if (imu_option.has_value())
 	{
 		imu_data& data = imu_option.value();
-
-		acceleration.x = data.a_x;
-		acceleration.y = data.a_y;
-		acceleration.z = data.a_z;
-
-		// Estimate position and velocity using Euler's method
-		velocity += acceleration * data.delta_time;
-		position += velocity * data.delta_time;
-
-		// Read angular velocity
-		// orientation += angular_velocity as quaternion * delta_time
+		position = maid::vector3f(data.x, data.y, data.z);
+		// Something for orientation
 	}
 
 	// Get next command
@@ -127,16 +112,7 @@ void controller::update()
 	}
 
 	auto command_ptr = &current_command.value();
-	if (command::delay* command = std::get_if<command::delay>(command_ptr))
-	{
-		if (current_time < current_command_context.start_time + std::chrono::milliseconds(command->milliseconds))
-		{
-			return;
-		}
-
-		current_command.reset();
-	}
-	else if (command::move_for_seconds* command = std::get_if<command::move_for_seconds>(command_ptr))
+	if (command::move_for_seconds* command = std::get_if<command::move_for_seconds>(command_ptr))
 	{
 		// TODO
 		

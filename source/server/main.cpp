@@ -82,16 +82,21 @@ void run_vision(network::server& server, vision& vision, asio::steady_timer& vis
 
 int main(int argc, char* argv[]) {
 
-    asio::io_context io_context;
-    network::server server(io_context, 12345);
-    std::thread thread([&io_context] {
-        io_context.run();
+    asio::io_context network_io_context;
+    network::server server(network_io_context, 12345);
+    std::thread network_thread([&] {
+        network_io_context.run();
     });
 
     vision vision;
 
     // Run vision and object detection every second
-    asio::basic_waitable_timer<std::chrono::steady_clock> vision_timer(io_context, vision_interval);
+    asio::io_context vision_io_context;
+    asio::basic_waitable_timer<std::chrono::steady_clock> vision_timer(vision_io_context, vision_interval);
+    std::thread vision_thread([&] {
+        vision_io_context.run();
+    });
+    
     vision_timer.async_wait(std::bind(
         &run_vision, 
         std::ref(server), 
@@ -99,16 +104,23 @@ int main(int argc, char* argv[]) {
         std::ref(vision_timer)
     ));
 
-    controller controller(io_context);
+    asio::io_context controller_io_context;
+    controller controller(controller_io_context);
     if (!controller.arduino_serial.is_connected())
     {
         std::cerr << "||| Warning |||: Failed to connect to Arduino UNO" << std::endl;
     };
+    std::thread controller_thread([&] {
+        controller_io_context.run();
+    });
 
     network::received_data data;
     while (1)
     {
         vision.is_client_connected = server.get_client_count() > 0;
+
+        controller.move_forward_for(0.01);
+        controller.update();
 
         // READ
         while (server.poll(data))
@@ -117,5 +129,12 @@ int main(int argc, char* argv[]) {
             network::deserialize(m, data);
             std::cout << m.str << std::endl;
         }
+
+        // TODO
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
+
+    network_thread.join();
+    vision_thread.join();
+    controller_thread.join();
 }

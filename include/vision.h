@@ -3,6 +3,10 @@
 #include "yolo_model.h"
 #include "vector.h"
 
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/filters/frustum_culling.h>
+
 #include <optional>
 
 // If a client is connected, annotated_image will contain the annotated camera frame

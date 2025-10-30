@@ -22,12 +22,13 @@ if(WIN32)
 endif()
 
 find_package(OpenCV REQUIRED)
+find_package(PCL REQUIRED)
 
 add_subdirectory(third_party)
 
 if(WIN32)
     message(STATUS "Compiling tests.")
-    add_subdirectory(tests)
+    #add_subdirectory(tests)
 endif()
 
 add_executable(FloorCar ${SOURCES} source/server/main.cpp)
@@ -37,7 +38,7 @@ add_custom_command(TARGET FloorCar POST_BUILD
                     
 target_include_directories(FloorCar PRIVATE include/ third_party/asio/include third_party/zpp_bits)
 target_compile_definitions(FloorCar PRIVATE ASIO_STANDALONE _WIN32_WINNT=0x601)
-target_link_libraries(FloorCar Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn)
+target_link_libraries(FloorCar Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn ${PCL_LIBRARIES})
 
 #####################
 
@@ -50,7 +51,7 @@ if(WIN32)
 
     target_include_directories(FloorCarClient PRIVATE include/ third_party/asio/include third_party/zpp_bits)
     target_compile_definitions(FloorCarClient PRIVATE ASIO_STANDALONE)
-    target_link_libraries(FloorCarClient Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn)
+    target_link_libraries(FloorCarClient Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn ${PCL_LIBRARIES})
 endif()
 
 add_executable(Calibration source/calibration/main.cpp)

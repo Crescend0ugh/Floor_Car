@@ -38,12 +38,7 @@ namespace command
 		float seconds;
 	};
 
-	struct delay
-	{
-		unsigned int milliseconds;
-	};
-
-	using command = std::variant<move_distance, move_for_seconds, rotate_to_heading, rotate_by, rotate_for_seconds, delay>;
+	using command = std::variant<move_distance, move_for_seconds, rotate_to_heading, rotate_by, rotate_for_seconds>;
 }
 
 enum remote_control_drive_state
@@ -69,21 +64,12 @@ class controller
 	};
 
 private:
-	// An update rate of 0 ms means the controller will not try to rate-limit itself
-	std::chrono::milliseconds update_rate;
-	std::chrono::time_point<std::chrono::steady_clock> next_update_time;
-	std::chrono::time_point<std::chrono::steady_clock> previous_update_time;
-
-	std::chrono::time_point<std::chrono::steady_clock> previous_imu_read_time;
-
 	std::optional<command::command> current_command = std::nullopt;
 	command_context current_command_context;
 
 	std::queue<command::command> command_queue;
-	
-	std::optional<asio::serial_port> arduino_serial_port = std::nullopt;
 
-	void read_from_arduino();
+	void send_command_to_arduino(command::command command_to_send);
 
 public:
 	class arduino_serial arduino_serial;
@@ -93,16 +79,7 @@ public:
 
 	bool is_remote_controlled;
 
-	// Read from the gyroscope's accelerometer
-	maid::vector3f acceleration;
-
-	// Estimated from acceleration using Euler's method
 	maid::vector3f position;
-	maid::vector3f velocity;
-
-	// Read from the gyroscope's gyro (Might want to convert this to a quaternion)
-	maid::vector3f angular_velocity;
-
 	// Would be estimated using Euler's method
 	// quaternion orientation;
 
@@ -110,12 +87,10 @@ public:
 	// -179 to 180 degrees
 	float heading;
 
-	controller(asio::io_context& io, uint32_t update_rate_ms = 0);
+	controller(asio::io_context& io);
 
 	void clear_command_queue();
 	void update();
-
-	// Motor setting stuff
 
 	auto get_command_queue()
 	{
@@ -143,9 +118,11 @@ public:
 		current_command_context.start_position = position;
 		current_command_context.start_heading = heading;
 
+		send_command_to_arduino(current_command.value());
+
 		return true;
 	}
-
+	
 	void normalize_heading()
 	{
 		heading = fmod(heading, 360.0f);

@@ -53,13 +53,15 @@ namespace network
 
 		void send(bytes data, bool at_front = false)
 		{
-			post(socket.get_executor(), [=, this] 
-			{
-				if (enqueue(std::move(data), at_front))
+			post(socket.get_executor(), 
+				[=, this] 
 				{
-					write_loop();
+					if (enqueue(std::move(data), at_front))
+					{
+						write_loop();
+					}
 				}
-			});
+			);
 		}
 
 		bool pop_read_queue(received_data& data)
