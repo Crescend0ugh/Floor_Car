@@ -1,14 +1,13 @@
 #pragma once
 
+#include "vector.h"
+#include "arduino_serial.h"
+
 #include <queue>
 #include <variant>
 #include <chrono>
 #include <optional>
 #include <numbers>
-
-#include "vector.h"
-#include "arduino_serial.h"
-#include "asio.hpp"
 
 namespace command
 {
@@ -87,7 +86,7 @@ public:
 	// -179 to 180 degrees
 	float heading;
 
-	controller(asio::io_context& io);
+	controller();
 
 	void clear_command_queue();
 	void update();

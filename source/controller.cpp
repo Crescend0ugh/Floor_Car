@@ -16,13 +16,12 @@ static float get_signed_angle(const float target_angle, const float start_angle)
 	return angle;
 }
 
-controller::controller(asio::io_context& io) :
+controller::controller() :
 	drive_state(remote_control_drive_state::not_driving),
 	steer_state(remote_control_steer_state::not_steering),
 	is_remote_controlled(false),
 	position(maid::vector3f()),
-	heading(0.0f),
-	arduino_serial(io)
+	heading(0.0f)
 {
 }
 
@@ -47,6 +46,8 @@ void controller::send_command_to_arduino(command::command command_to_send)
 void controller::update()
 {
 	auto current_time = std::chrono::steady_clock::now();
+
+	arduino_serial.read();
 
 	std::optional<imu_data> imu_option = arduino_serial.read_imu_data();
 	if (imu_option.has_value())

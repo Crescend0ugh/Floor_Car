@@ -217,7 +217,7 @@ void setup()
 
     randomSeed(1001);
 
-    delay(500);
+    delay(1000);
 }
 
 void loop() 

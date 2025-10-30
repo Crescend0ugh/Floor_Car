@@ -11,3 +11,5 @@ add_subdirectory(raylib)
 
 # ncnn
 add_subdirectory(ncnn)
+
+add_subdirectory(serialib)

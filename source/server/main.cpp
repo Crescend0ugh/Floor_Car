@@ -10,6 +10,7 @@
 #include "network_data.h"
 #include "vision.h"
 #include "controller.h"
+#include "serialib.h"
 
 #include <raylib.h>
 #include <iostream>
@@ -103,16 +104,13 @@ int main(int argc, char* argv[]) {
         std::ref(vision), 
         std::ref(vision_timer)
     ));
+    
 
-    asio::io_context controller_io_context;
-    controller controller(controller_io_context);
+    controller controller;
     if (!controller.arduino_serial.is_connected())
     {
         std::cerr << "||| Warning |||: Failed to connect to Arduino UNO" << std::endl;
     };
-    std::thread controller_thread([&] {
-        controller_io_context.run();
-    });
 
     network::received_data data;
     while (1)
@@ -130,11 +128,11 @@ int main(int argc, char* argv[]) {
             std::cout << m.str << std::endl;
         }
 
+
         // TODO
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 
     network_thread.join();
     vision_thread.join();
-    controller_thread.join();
 }
