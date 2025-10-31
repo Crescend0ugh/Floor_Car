@@ -9,9 +9,9 @@ struct imu_data
 	float y;
 	float z;
 
-	float yaw;
-	float pitch;
 	float roll;
+	float pitch;
+	float yaw; // This is the heading
 };
 
 struct microphone_data

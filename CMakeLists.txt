@@ -28,7 +28,7 @@ add_subdirectory(third_party)
 
 if(WIN32)
     message(STATUS "Compiling tests.")
-    #add_subdirectory(tests)
+    add_subdirectory(tests)
 endif()
 
 add_executable(FloorCar ${SOURCES} source/server/main.cpp)

@@ -5,5 +5,5 @@ out
 .vs
 
 content/calibration_inputs
+content/calibration_outputs
 content/calibration_results
-content/camera_matrices

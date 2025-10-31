@@ -348,8 +348,13 @@ cv::Mat annotate_detections(const cv::Mat& bgr, const std::vector<detection>& de
 			cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
 	}
 
-	std::string processing_time_text = std::format("Took: {}", processing_time);
-	cv::putText(image, processing_time_text, cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+	using namespace std::chrono_literals;
+	if (processing_time >= 0ms)
+	{
+		std::string processing_time_text = std::format("Took: {}", processing_time);
+		cv::putText(image, processing_time_text, cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+	}
+
 
 	return image;
 }

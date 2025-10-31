@@ -6,6 +6,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/frustum_culling.h>
+#include <pcl/filters/passthrough.h>
 
 #include <optional>
 
@@ -39,10 +40,12 @@ private:
 
 	cv::Mat camera_mat; // Camera's intrinsic matrix
 	cv::Mat dist_coeffs; // Camera's distortion coefficients
-	cv::Mat lidar_to_camera_transform; // Obtained from calibration
+	cv::Mat lidar_to_camera_transform; // Obtained from calibration (4x4)
 
 	cv::VideoCapture capture;
 	cv::Mat camera_frame;
+
+	cv::Size image_size = cv::Size{ 640, 480 };
 
 	bool calibration_info_loaded = false;
 
@@ -57,7 +60,7 @@ public:
 	vision();
 	bool initialize_camera();
 
-	void estimate_detection_3d_bounds(const std::vector<cv::Vec3d>& lidar_point_cloud);
+	void estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud);
 
 	bool grab_frame();
 

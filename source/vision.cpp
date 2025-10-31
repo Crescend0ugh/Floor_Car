@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <cmath>
 
 vision::vision()
 {
@@ -34,15 +35,16 @@ bool vision::load_camera_calibration_info()
         return false;
     }
 
-    cv::FileStorage intrinsics((camera_matrices_path / "intrinsics_0.yml").string(), cv::FileStorage::READ);
+    cv::FileStorage intrinsics((camera_matrices_path / "intrinsics.yml").string(), cv::FileStorage::READ);
     if (intrinsics.isOpened())
     {
-        intrinsics["M"] >> camera_mat;
+        intrinsics["K"] >> camera_mat;
         intrinsics["D"] >> dist_coeffs;
+        intrinsics["image_size"] >> image_size;
     }
     else
     {
-        std::cerr << "Could not open intrinsics_0.yml to get the left camera's intrinsic matrix" << std::endl;
+        std::cerr << "Could not open intrinsics.yml to get the camera's intrinsic matrix" << std::endl;
         return false;
     }
 
@@ -72,8 +74,67 @@ bool vision::initialize_camera()
     return is_enabled;
 }
 
-void vision::estimate_detection_3d_bounds(const std::vector<cv::Vec3d>& lidar_point_cloud)
+void vision::estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud)
 {
+    pcl::PointCloud<pcl::PointXYZ>::Ptr front_point_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    
+    // Discard points that have an x < 0.0 and are thus behind the camera
+    {
+        pcl::PassThrough<pcl::PointXYZ> pass;
+        pass.setInputCloud(lidar_point_cloud);
+        pass.setFilterFieldName("x");
+        pass.setFilterLimits(0.0, 100.0);
+        pass.filter(*front_point_cloud);
+    }
+
+    cv::Mat camera_to_lidar_transform = lidar_to_camera_transform.inv();
+
+    float near_plane_distance = 0.1;
+
+    for (int detection_id = 0; detection_id < detections.size(); ++detection_id)
+    {
+        // Convert OpenCV matrix to Eigen matrix (OpenCV uses row major)
+        Eigen::Map<Eigen::Matrix<float, 4, 4, Eigen::RowMajor>> camera_pose(camera_to_lidar_transform.ptr<float>());
+
+        cv::Rect bounds = detections[detection_id].rect;
+
+        cv::Point2f center = (bounds.br() + bounds.tl()) * 0.5;
+
+        // Translate camera origin so that it projects onto the center of the bbox
+        // +x axis is right, +y axis is down
+        camera_pose(0, 3) += (center.x - image_size.width);
+        camera_pose(1, 3) += (center.y - image_size.height);
+
+        // FOV = atan( dimension / (2 * focal length) )
+        float fov_x = std::atan(bounds.width / (2 * camera_mat.at<float>(0, 0)));
+        float fov_y = std::atan(bounds.height / (2 * camera_mat.at<float>(1, 1)));
+
+        pcl::FrustumCulling<pcl::PointXYZ> frustum_culling;
+        frustum_culling.setInputCloud(lidar_point_cloud);
+        frustum_culling.setVerticalFOV(fov_y);
+        frustum_culling.setHorizontalFOV(fov_x);
+        frustum_culling.setNearPlaneDistance(near_plane_distance); // Arbitrary
+        frustum_culling.setFarPlaneDistance(12.0); // Arbitrary
+
+        frustum_culling.setCameraPose(camera_pose);
+
+        pcl::PointCloud<pcl::PointXYZ> filtered_point_cloud;
+        frustum_culling.filter(filtered_point_cloud);
+
+        /*
+        for (int i = 0; i < corresponding_image_points.size(); ++i)
+        {
+            if (!bounds.contains(corresponding_image_points[i]))
+            {
+                continue;
+            }
+
+            lidar_points_in_bboxes[i].push_back(lidar_point_cloud[i]);
+        }
+        */
+    }
+
+#if 0
     std::vector<cv::Point2d> corresponding_image_points;
     corresponding_image_points.resize(lidar_point_cloud.size());
 
@@ -111,6 +172,7 @@ void vision::estimate_detection_3d_bounds(const std::vector<cv::Vec3d>& lidar_po
         corresponding_image_points[i] = image_space_point.reshape(1, 1).at<cv::Point2d>(0, 0);
     }
 
+
     std::vector<std::vector<cv::Vec3d>> lidar_points_in_bboxes;
     lidar_points_in_bboxes.resize(detections.size());
 
@@ -133,6 +195,7 @@ void vision::estimate_detection_3d_bounds(const std::vector<cv::Vec3d>& lidar_po
     {
 
     }
+#endif
 }
 
 bool vision::grab_frame()

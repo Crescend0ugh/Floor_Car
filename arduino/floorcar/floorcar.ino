@@ -1,3 +1,8 @@
+#include "src/write_buffer.h"
+
+#include <MPU9250.h>
+#include <Wire.h>
+
 enum direction
 {
     backward,
@@ -87,6 +92,7 @@ struct motor_driver
 };
 
 motor_driver driver;
+// MPU9250 imu(Wire, 0x68);
 
 const unsigned long update_rate_ms = 16;
 
@@ -123,31 +129,10 @@ void euler_method(float* x, float* dx, float delta_time)
 
 void send_imu_data()
 {
-    // [payload size in bytes] [message type] [position vector3] [rotation vector3]
-    unsigned short packet_size = sizeof(unsigned short) + sizeof(unsigned char) + 6 * sizeof(float);
-    unsigned char buffer[packet_size];
-    unsigned char* cursor = buffer;
-
-    unsigned short payload_size = packet_size - sizeof(unsigned short);
-    memcpy(cursor, &payload_size, sizeof(unsigned short));
-    cursor += sizeof(unsigned short);
-
-    // Write header
-    memcpy(cursor, &imu_data_header, sizeof(unsigned char));
-    cursor += sizeof(unsigned char);
-
-    // Position vector
-    memcpy(cursor, position, sizeof(position));
-    cursor += sizeof(position);
-
-    // Rotation vector
-    memcpy(cursor, rotation, sizeof(rotation));
-    cursor += sizeof(rotation);
-
-    if (Serial.availableForWrite() > 0)
-    {
-        Serial.write(buffer, sizeof(buffer));
-    }
+    write_buffer writer(imu_data_header);
+    writer.write(position, sizeof(position));
+    writer.write(rotation, sizeof(rotation));
+    writer.transmit();
 }
 
 void send_microphone_data()
@@ -158,23 +143,11 @@ void send_microphone_data()
 // A makeshift Serial.println. Outputs to the Raspberry Pi terminal.
 void log(String string)
 {
-    unsigned short packet_size = sizeof(unsigned short) + sizeof(unsigned char) + string.length() + 1;
-    unsigned char buffer[packet_size];
-    unsigned char* cursor = buffer;
-
-    unsigned short payload_size = packet_size - sizeof(unsigned short);
-    memcpy(cursor, &payload_size, sizeof(unsigned short));
-    cursor += sizeof(unsigned short);
-
-    memcpy(cursor, &log_string_header, sizeof(unsigned char));
-    cursor += sizeof(unsigned char);
-
-    string.toCharArray(cursor, packet_size);
-
-    if (Serial.availableForWrite() > 0)
-    {
-        Serial.write(buffer, sizeof(buffer));
-    }
+    write_buffer writer(log_string_header);
+    char string_buffer[string.length() + 1];
+    string.toCharArray(string_buffer, string.length() + 1);
+    writer.write(string_buffer, sizeof(string_buffer));
+    writer.transmit();
 }
 
 float read_float()
@@ -213,9 +186,19 @@ void setup()
     Serial.begin(115200);
     while (!Serial) {}
 
+    Wire.begin();
+
     driver = motor_driver(5, 7, 6, 3, 1, 2);
 
     randomSeed(1001);
+
+    /*
+    while (imu.begin() != INV_SUCCESS) 
+    {
+        log("Failed to initialize MPU9250");
+        delay(1000);
+    }
+    */
 
     delay(1000);
 }
@@ -235,8 +218,6 @@ void loop()
     angular_velocity[1] = random(-1000, 1000) / 43.0;
     angular_velocity[2] = random(-1000, 1000) / 54.0;
     // TODO: Read IMU sensor data into above data (however it's done)
-
-    // TODO: Something special needs to be do for the orientation
 
     euler_method(velocity, acceleration, delta_time);
     euler_method(position, velocity, delta_time);

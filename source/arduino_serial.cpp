@@ -38,7 +38,7 @@ void arduino_serial::read()
 		port.readBytes(&payload_size, sizeof(payload_size));
 
 		// Some garbage data, probably
-		if (payload_size > 256)
+		if (payload_size > 256 || port.available() < payload_size)
 		{
 			port.flushReceiver();
 			break;

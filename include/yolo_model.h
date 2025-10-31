@@ -7,6 +7,8 @@
 
 #include <vector>
 
+using namespace std::chrono_literals;
+
 struct detection
 {
 	cv::Rect_<float> rect;
@@ -48,4 +50,4 @@ public:
 
 const char* get_detection_class_name(int id);
 
-cv::Mat annotate_detections(const cv::Mat& bgr, const std::vector<detection>& detections, std::chrono::milliseconds processing_time);
+cv::Mat annotate_detections(const cv::Mat& bgr, const std::vector<detection>& detections, std::chrono::milliseconds processing_time = -1ms);

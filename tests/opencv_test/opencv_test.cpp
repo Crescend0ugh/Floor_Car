@@ -57,10 +57,8 @@ cv::Mat run_model(yolo_model& model, cv::Mat& m)
 	return annotate_detections(m, objects, runtime);
 }
 
-void run_on_static_image(const char* path)
+void run_on_static_image(const char* imagepath)
 {
-	const char* imagepath = "content/images/apple.jpg";
-
 	cv::Mat m = cv::imread(imagepath, 1);
 
 	if (m.empty())
@@ -124,9 +122,9 @@ void run_on_camera_feed()
 
 int main()
 {
-	//run_on_static_image("content/images/apple.jpg");
+	run_on_static_image("content/images/000050.jpg");
 
-	run_on_camera_feed();
+	//run_on_camera_feed();
 
 	return 0;
 }

@@ -6,6 +6,7 @@ set(TEST_SUBDIRECTORIES
 	networking_test
 	opencv_test
 	#controller_test
+	bounding_boxes_test
 )
 
 if(WIN32)
@@ -32,6 +33,6 @@ foreach(SUBDIRECTORY IN LISTS TEST_SUBDIRECTORIES)
 	)
 
 	target_compile_definitions(${SUBDIRECTORY} PRIVATE ASIO_STANDALONE _WIN32_WINNT=0x601)
-	target_link_libraries(${SUBDIRECTORY} PRIVATE Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn)
+	target_link_libraries(${SUBDIRECTORY} PRIVATE Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn ${PCL_LIBRARIES} serialib)
 endforeach()
  
