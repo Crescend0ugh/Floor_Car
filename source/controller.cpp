@@ -3,6 +3,8 @@
 
 using namespace std::chrono_literals;
 
+static const unsigned char rc_command_header = 0xFF;
+
 static constexpr auto seconds_to_chrono_nanoseconds(const float time_seconds)
 {
 	return std::chrono::round<std::chrono::nanoseconds>(std::chrono::duration<float>(time_seconds));
@@ -16,11 +18,24 @@ static float get_signed_angle(const float target_angle, const float start_angle)
 	return angle;
 }
 
+// For the IMU coordinate system, which is right-handed
+static Eigen::Matrix3f euler_angles_to_rotation_matrix(float roll, float pitch, float yaw)
+{
+	Eigen::AngleAxisf roll_angle(roll, Eigen::Vector3f::UnitX());
+	Eigen::AngleAxisf pitch_angle(pitch, Eigen::Vector3f::UnitY());
+	Eigen::AngleAxisf yaw_angle(yaw, Eigen::Vector3f::UnitZ());
+
+	// Combine in Z-Y-X order
+	Eigen::Quaternionf q = yaw_angle * pitch_angle * roll_angle;
+
+	Eigen::Matrix3f rotation_matrix = q.toRotationMatrix();
+
+	return rotation_matrix;
+}
+
 controller::controller() :
-	drive_state(remote_control_drive_state::not_driving),
-	steer_state(remote_control_steer_state::not_steering),
 	is_remote_controlled(false),
-	position(maid::vector3f()),
+	imu_position(Eigen::Vector3f()),
 	heading(0.0f)
 {
 }
@@ -43,6 +58,37 @@ void controller::send_command_to_arduino(command::command command_to_send)
 	arduino_serial.write(serialized);
 }
 
+void controller::send_rc_command_to_arduino(rc_command command)
+{
+	std::string serialized;
+	zpp::bits::out out(serialized);
+	out(rc_command_header).or_throw();
+	out(command).or_throw();
+
+	arduino_serial.write(serialized);
+}
+
+bool controller::next_command()
+{
+	current_command.reset();
+
+	if (command_queue.empty())
+	{
+		return false;
+	}
+
+	current_command = command_queue.front();
+	command_queue.pop();
+
+	current_command_context.start_time = std::chrono::steady_clock::now();
+	current_command_context.start_position = imu_position;
+	current_command_context.start_heading = heading;
+
+	send_command_to_arduino(current_command.value());
+
+	return true;
+}
+
 void controller::update()
 {
 	auto current_time = std::chrono::steady_clock::now();
@@ -53,8 +99,9 @@ void controller::update()
 	if (imu_option.has_value())
 	{
 		imu_data& data = imu_option.value();
-		position = maid::vector3f(data.x, data.y, data.z);
-		// Something for orientation
+		imu_position = Eigen::Vector3f(data.x, data.y, data.z);
+		imu_rotation = euler_angles_to_rotation_matrix(data.roll, data.pitch, data.yaw);
+		heading = data.yaw;
 	}
 
 	// Get next command
@@ -63,47 +110,9 @@ void controller::update()
 		next_command();
 	}
 
-	// If there's no command active, listen to remote controls
+	// If there's no command active, send remote controls
 	if (is_remote_controlled && !current_command.has_value())
 	{
-		switch (drive_state)
-		{
-		case remote_control_drive_state::forward: {
-			// PLACEHOLDER
-			float velocity_magnitude = 1;
-			auto direction = maid::vector3f(sin(heading * std::numbers::pi / 180.0f), 0, -cos(heading * std::numbers::pi / 180.0f));
-			position += direction * velocity_magnitude;
-
-			break;
-		}
-
-		case remote_control_drive_state::not_driving: {
-			break;
-		}
-		}
-
-		switch (steer_state)
-		{
-		case remote_control_steer_state::left: {
-			// PLACEHOLDER
-			float angular_velocity_magnitude = 0.5;
-			heading -= angular_velocity_magnitude;
-
-			break;
-		}
-
-		case remote_control_steer_state::right: {
-			// PLACEHOLDER
-			float angular_velocity_magnitude = 0.5;
-			heading += angular_velocity_magnitude;
-
-			break;
-		}
-
-		default: {
-			break;
-		}
-		}
 
 	}
 
@@ -138,12 +147,10 @@ void controller::update()
 		// TODO
 		
 		// PLACEHOLDER
-		float velocity_magnitude = 0.5;
-		auto direction = maid::vector3f(sin(heading * std::numbers::pi / 180.0f), 0, -cos(heading * std::numbers::pi / 180.0f));
-		position += direction * velocity_magnitude;
+
 
 		// TODO: Decide on an epsilon
-		if ((position - current_command_context.start_position).length() > command->distance * 0.999)
+		if ((imu_position - current_command_context.start_position).norm() > command->distance * 0.999)
 		{
 			next_command();
 		}
@@ -162,8 +169,6 @@ void controller::update()
 		else
 		{
 			// PLACEHOLDER
-			float angular_velocity_magnitude = 0.5;
-			heading += sign * angular_velocity_magnitude;
 		}
 	}
 	else if (command::rotate_by* command = std::get_if<command::rotate_by>(command_ptr))

@@ -110,6 +110,17 @@ enum command
     rotate_for_seconds
 };
 
+const unsigned char rc_header_byte = 0xFF;
+enum rc_command
+{
+    none = 0,
+    stop,
+    w,
+    s,
+    a,
+    d
+};
+
 // Sometimes, the serial has 3 bytes available when we expect 4, for whatever reason, so this is a failsafe
 bool had_read_error = false;
 
@@ -181,6 +192,40 @@ void clear_serial_buffer()
     }
 }
 
+void handle_rc_command()
+{
+    switch (Serial.read())
+    {
+    case (rc_command::stop):
+    {
+
+        break;
+    }
+    case (rc_command::w):
+    {
+
+        break;
+    }
+    case (rc_command::s):
+    {
+
+        break;
+    }
+    case (rc_command::a):
+    {
+
+        break;
+    }
+    case (rc_command::d):
+    {
+
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 void setup() 
 {
     Serial.begin(115200);
@@ -234,6 +279,11 @@ void loop()
 
         switch (command_id)
         {
+        case (rc_header_byte):
+        {
+            handle_rc_command();
+            break;
+        }
         case (move_distance):
         {
             float distance = read_float();

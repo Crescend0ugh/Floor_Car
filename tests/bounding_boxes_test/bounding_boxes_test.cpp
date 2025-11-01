@@ -67,7 +67,8 @@ int main()
 
 	cv::Mat input_matrix = cv::imread((data_path / "cars.jpg").string(), 1);
     cv::Mat undistorted_matrix;
-    cv::undistort(input_matrix, undistorted_matrix, camera_matrix, dist_coeffs, camera_matrix);
+    cv::getOptimalNewCameraMatrix(camera_matrix, dist_coeffs, image_size, 1.0);
+    cv::undistort(input_matrix, undistorted_matrix, camera_matrix, dist_coeffs);
 
 	yolo_model yolo;
 	std::vector<detection> detections;
@@ -105,7 +106,7 @@ int main()
                 1, 0, 0, 0,
                 0, 0, 0, 1;
 
-        Eigen::Matrix4f converted_pose = camera_pose * cam2robot;
+        Eigen::Matrix4f converted_pose = camera_pose; //* cam2robot;
 
         cv::Rect bounds = detections[detection_id].rect;
         cv::Point2f center = (bounds.tl() + bounds.br()) * 0.5;

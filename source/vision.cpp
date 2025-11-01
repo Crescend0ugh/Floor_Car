@@ -1,8 +1,86 @@
 #include "vision.h"
 
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/kdtree/kdtree.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/features/moment_of_inertia_estimation.h>
+
 #include <cstdlib>
 #include <filesystem>
 #include <cmath>
+
+static const float near_plane_distance_m = 0.1f;
+static const float euclidean_clustering_tolerance_m = 1.0f;
+static const int euclidean_clustering_min_cluster_size = 10;
+
+static pcl::PointCloud<pcl::PointXYZ>::Ptr cull_points_behind_camera(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud)
+{
+    pcl::PointCloud<pcl::PointXYZ>::Ptr front_point_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+    // Discard points that have a x < 0.0 and are thus behind the camera
+    pcl::PassThrough<pcl::PointXYZ> pass;
+    pass.setInputCloud(cloud);
+    pass.setFilterFieldName("x");
+    pass.setFilterLimits(0.0, std::numeric_limits<float>::max());
+    pass.filter(*front_point_cloud);
+
+    return front_point_cloud;
+}
+
+static pcl::PointCloud<pcl::PointXYZ>::Ptr get_biggest_cluster(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud)
+{
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+    tree->setInputCloud(cloud);
+
+    std::vector<pcl::PointIndices> cluster_indices;
+
+    pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+    ec.setClusterTolerance(euclidean_clustering_tolerance_m);
+    ec.setMinClusterSize(euclidean_clustering_min_cluster_size);
+    ec.setMaxClusterSize(15000); // Doesn't matter
+    ec.setSearchMethod(tree);
+    ec.setInputCloud(cloud);
+    ec.extract(cluster_indices);
+
+    // Find the biggest cluster
+    int most_indices = -1;
+    int biggest_cluster_index = 0;
+    for (int i = 0; i < cluster_indices.size(); ++i)
+    {
+        const auto& indices = cluster_indices[i];
+        if (indices.indices.size() > most_indices)
+        {
+            most_indices = indices.indices.size();
+            biggest_cluster_index = i;
+        }
+    }
+
+    // Copy over the points
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cluster_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    for (const auto& point_index : cluster_indices[biggest_cluster_index].indices)
+    {
+        cluster_cloud->push_back((*cloud)[point_index]);
+    }
+    cluster_cloud->width = cluster_cloud->size();
+    cluster_cloud->height = 1;
+    cluster_cloud->is_dense = true;
+
+    return cluster_cloud;
+}
+
+static detection_obb estimate_OBB(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud)
+{
+    pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
+    feature_extractor.setInputCloud(cloud);
+    feature_extractor.compute();
+
+    detection_obb obb;
+
+    feature_extractor.getOBB(obb.min_point, obb.max_point, obb.center, obb.rotation_matrix);
+
+    return obb;
+}
 
 vision::vision()
 {
@@ -13,20 +91,19 @@ bool vision::load_camera_calibration_info()
 {
     std::string file_path{ __FILE__ };
     std::filesystem::path source_path(file_path);
-    std::filesystem::path camera_matrices_path = source_path.parent_path().parent_path().parent_path().append("content").append("camera_matrices");
+    std::filesystem::path calibration_results_path = source_path.parent_path().parent_path().parent_path().append("content").append("calibration_results");
 
-    if (!std::filesystem::exists(camera_matrices_path))
+    if (!std::filesystem::exists(calibration_results_path))
     {
-        std::cerr << "No camera_matrices directory could be found." << std::endl;
+        std::cerr << "No 'calibration_results' directory could be found." << std::endl;
         return false;
     }
 
-    // TODO: Don't know if these will be in YML
-    cv::FileStorage extrinsics((camera_matrices_path / "extrinsics.yml").string(), cv::FileStorage::READ);
+    cv::FileStorage extrinsics((calibration_results_path / "extrinsics.yml").string(), cv::FileStorage::READ);
     if (extrinsics.isOpened())
     {
-        // TODO
-        // extrinsics["RT"] >> lidar_to_camera_transform;
+        extrinsics["T"] >> lidar_to_camera_transform; // This should be column major
+        camera_to_lidar_transform = lidar_to_camera_transform.inv();
         // MAKE THIS A 4x4 MATRIX IF IT ISN'T !!!
     }
     else
@@ -35,12 +112,15 @@ bool vision::load_camera_calibration_info()
         return false;
     }
 
-    cv::FileStorage intrinsics((camera_matrices_path / "intrinsics.yml").string(), cv::FileStorage::READ);
+    cv::FileStorage intrinsics((calibration_results_path / "intrinsics.yml").string(), cv::FileStorage::READ);
     if (intrinsics.isOpened())
     {
-        intrinsics["K"] >> camera_mat;
+        intrinsics["K"] >> camera_matrix;
         intrinsics["D"] >> dist_coeffs;
         intrinsics["image_size"] >> image_size;
+
+        // Apply distortion coefficients
+        cv::getOptimalNewCameraMatrix(camera_matrix, dist_coeffs, image_size, 1.0);
     }
     else
     {
@@ -74,128 +154,68 @@ bool vision::initialize_camera()
     return is_enabled;
 }
 
-void vision::estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud)
+std::vector<detection_obb> vision::estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud)
 {
-    pcl::PointCloud<pcl::PointXYZ>::Ptr front_point_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    
-    // Discard points that have an x < 0.0 and are thus behind the camera
-    {
-        pcl::PassThrough<pcl::PointXYZ> pass;
-        pass.setInputCloud(lidar_point_cloud);
-        pass.setFilterFieldName("x");
-        pass.setFilterLimits(0.0, 100.0);
-        pass.filter(*front_point_cloud);
-    }
-
-    cv::Mat camera_to_lidar_transform = lidar_to_camera_transform.inv();
-
-    float near_plane_distance = 0.1;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr front_point_cloud = cull_points_behind_camera(lidar_point_cloud);
+    std::vector<detection_obb> obbs;
 
     for (int detection_id = 0; detection_id < detections.size(); ++detection_id)
     {
-        // Convert OpenCV matrix to Eigen matrix (OpenCV uses row major)
-        Eigen::Map<Eigen::Matrix<float, 4, 4, Eigen::RowMajor>> camera_pose(camera_to_lidar_transform.ptr<float>());
-
         cv::Rect bounds = detections[detection_id].rect;
-
         cv::Point2f center = (bounds.br() + bounds.tl()) * 0.5;
 
-        // Translate camera origin so that it projects onto the center of the bbox
-        // +x axis is right, +y axis is down
-        camera_pose(0, 3) += (center.x - image_size.width);
-        camera_pose(1, 3) += (center.y - image_size.height);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_point_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-        // FOV = atan( dimension / (2 * focal length) )
-        float fov_x = std::atan(bounds.width / (2 * camera_mat.at<float>(0, 0)));
-        float fov_y = std::atan(bounds.height / (2 * camera_mat.at<float>(1, 1)));
-
-        pcl::FrustumCulling<pcl::PointXYZ> frustum_culling;
-        frustum_culling.setInputCloud(lidar_point_cloud);
-        frustum_culling.setVerticalFOV(fov_y);
-        frustum_culling.setHorizontalFOV(fov_x);
-        frustum_culling.setNearPlaneDistance(near_plane_distance); // Arbitrary
-        frustum_culling.setFarPlaneDistance(12.0); // Arbitrary
-
-        frustum_culling.setCameraPose(camera_pose);
-
-        pcl::PointCloud<pcl::PointXYZ> filtered_point_cloud;
-        frustum_culling.filter(filtered_point_cloud);
-
-        /*
-        for (int i = 0; i < corresponding_image_points.size(); ++i)
+        for (const auto& point : front_point_cloud->points)
         {
-            if (!bounds.contains(corresponding_image_points[i]))
+            cv::Mat homogeneous_point = (cv::Mat_<float>(4, 1) << point.x, point.y, point.z, 1.0f);
+            cv::Mat camera_space_homogeneous_point = lidar_to_camera_transform * homogeneous_point;
+
+            // Perform 3D perspective divide
+            float w_3d = camera_space_homogeneous_point.at<float>(3, 0);
+            if (w_3d == 0)
             {
                 continue;
             }
 
-            lidar_points_in_bboxes[i].push_back(lidar_point_cloud[i]);
-        }
-        */
-    }
+            cv::Mat camera_space_point = (cv::Mat_<float>(3, 1) <<
+                camera_space_homogeneous_point.at<float>(0, 0) / w_3d,
+                camera_space_homogeneous_point.at<float>(1, 0) / w_3d,
+                camera_space_homogeneous_point.at<float>(2, 0) / w_3d
+            );
 
-#if 0
-    std::vector<cv::Point2d> corresponding_image_points;
-    corresponding_image_points.resize(lidar_point_cloud.size());
+            // Camera space to image plane
+            cv::Mat image_space_homogeneous_point = camera_matrix * camera_space_point;
 
-    // Create mapping from 3D lidar points to 2D image points
-    for (int i = 0; i < lidar_point_cloud.size(); ++i)
-    {
-        auto& point = lidar_point_cloud[i];
+            // Perspective divide to get 2D image coordinates
+            float w_2d = image_space_homogeneous_point.at<float>(2, 0);
 
-        // Convert to 4D row vector
-        cv::Mat homogeneous_point = (cv::Mat_<double>(4, 1) << point[0], point[1], point[2], 1.0);
-
-        // Transform world (lidar) space to camera space
-        cv::Mat camera_space_homogeneous_point = homogeneous_point * lidar_to_camera_transform;
-
-        // Perspective divide into 3D
-        double w = camera_space_homogeneous_point.at<double>(3, 0);
-
-        cv::Mat camera_space_point = (cv::Mat_<double>(3, 1) << 
-            camera_space_homogeneous_point.at<double>(0, 0) / w, 
-            camera_space_homogeneous_point.at<double>(1, 0) / w,
-            camera_space_homogeneous_point.at<double>(2, 0) / w
-        );
-
-        // Camera space to image plane
-        cv::Mat image_space_homogeneous_point = camera_space_point * camera_mat;
-
-        // Perspective divide into 2D
-        w = image_space_homogeneous_point.at<double>(2, 0);
-        
-        cv::Mat image_space_point = (cv::Mat_<double>(2, 1) <<
-            image_space_homogeneous_point.at<double>(0, 0) / w,
-            image_space_homogeneous_point.at<double>(1, 0) / w
-        );
-
-        corresponding_image_points[i] = image_space_point.reshape(1, 1).at<cv::Point2d>(0, 0);
-    }
-
-
-    std::vector<std::vector<cv::Vec3d>> lidar_points_in_bboxes;
-    lidar_points_in_bboxes.resize(detections.size());
-
-    for (int detection_id = 0; detection_id < detections.size(); ++detection_id)
-    {
-        cv::Rect bounds = detections[detection_id].rect;
-
-        for (int i = 0; i < corresponding_image_points.size(); ++i)
-        {
-            if (!bounds.contains(corresponding_image_points[i]))
+            // Near plane clipping
+            if (w_2d <= near_plane_distance_m)
             {
                 continue;
             }
 
-            lidar_points_in_bboxes[i].push_back(lidar_point_cloud[i]);
+            // Calculate final (u, v) pixel coordinates
+            cv::Point2f image_space_point(
+                image_space_homogeneous_point.at<float>(0, 0) / w_2d,
+                image_space_homogeneous_point.at<float>(1, 0) / w_2d
+            );
+
+            // If the point is inside the bounding box, add it to the cloud
+            if (bounds.contains(image_space_point))
+            {
+                filtered_point_cloud->points.push_back(point);
+                // Draw point
+                //cv::circle(annotated, image_space_point, 1, cv::Scalar(0, 0, 255));
+            }
         }
+
+        auto cluster_cloud = get_biggest_cluster(filtered_point_cloud);
+        obbs.push_back(estimate_OBB(cluster_cloud));
     }
 
-    for (int i = 0; i < lidar_points_in_bboxes.size(); ++i)
-    {
-
-    }
-#endif
+    return obbs;
 }
 
 bool vision::grab_frame()

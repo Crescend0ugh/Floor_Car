@@ -17,11 +17,20 @@
 #include <thread>
 #include <functional>
 
+asio::io_context network_io_context;
+network::server server(network_io_context, 12345);
+
+asio::io_context vision_io_context;
+class vision vision;
+
 // Delay between each object detection cycle
 const auto vision_interval = std::chrono::milliseconds(50);
+asio::basic_waitable_timer<std::chrono::steady_clock> vision_timer(vision_io_context, vision_interval);
+
+class controller controller;
 
 // Convert cv::Mat to a string and processing_time to u16
-camera_frame serialize_detection_results(detection_results& results)
+static camera_frame serialize_detection_results(detection_results& results)
 {
     cv::Mat image = results.annotated_image.value();
 
@@ -51,7 +60,7 @@ camera_frame serialize_detection_results(detection_results& results)
     };
 }
 
-void run_vision(network::server& server, vision& vision, asio::steady_timer& vision_timer)
+static void run_vision(network::server& server, class vision& vision, asio::steady_timer& vision_timer)
 {
     if (vision.is_enabled)
     {
@@ -81,32 +90,18 @@ void run_vision(network::server& server, vision& vision, asio::steady_timer& vis
     vision_timer.async_wait(std::bind(&run_vision, std::ref(server), std::ref(vision), std::ref(vision_timer)));
 }
 
-int main(int argc, char* argv[]) {
-
-    asio::io_context network_io_context;
-    network::server server(network_io_context, 12345);
+int main(int argc, char* argv[]) 
+{
     std::thread network_thread([&] {
         network_io_context.run();
     });
 
-    vision vision;
-
-    // Run vision and object detection every second
-    asio::io_context vision_io_context;
-    asio::basic_waitable_timer<std::chrono::steady_clock> vision_timer(vision_io_context, vision_interval);
     std::thread vision_thread([&] {
         vision_io_context.run();
     });
     
-    vision_timer.async_wait(std::bind(
-        &run_vision, 
-        std::ref(server), 
-        std::ref(vision), 
-        std::ref(vision_timer)
-    ));
+    vision_timer.async_wait(std::bind(&run_vision, std::ref(server), std::ref(vision), std::ref(vision_timer)));
     
-
-    controller controller;
     if (!controller.arduino_serial.is_connected())
     {
         std::cerr << "||| Warning |||: Failed to connect to Arduino UNO" << std::endl;
@@ -117,17 +112,28 @@ int main(int argc, char* argv[]) {
     {
         vision.is_client_connected = server.get_client_count() > 0;
 
-        controller.move_forward_for(0.01);
         controller.update();
 
         // READ
         while (server.poll(data))
         {
-            message m;
-            network::deserialize(m, data);
-            std::cout << m.str << std::endl;
-        }
+            switch (data.protocol_id)
+            {
 
+            case (protocol::rc):
+            {
+                rc_command command;
+                network::deserialize(command, data);
+
+                std::cout << command << std::endl;
+                break;
+            }
+
+            default:
+                break;
+
+            }
+        }
 
         // TODO
         std::this_thread::sleep_for(std::chrono::milliseconds(16));

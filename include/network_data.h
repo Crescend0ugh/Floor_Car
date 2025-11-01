@@ -13,7 +13,7 @@ enum protocol
 {
     placeholder = 0,
     camera_feed,
-    rc_command,
+    rc,
 };
 
 struct camera_frame
@@ -25,9 +25,14 @@ struct camera_frame
     uint16_t processing_time;
 };
 
-struct rc_command
+enum rc_command
 {
-    
+    none = 0,
+    stop,
+    w,
+    s,
+    a,
+    d
 };
 
 struct message

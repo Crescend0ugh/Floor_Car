@@ -1,7 +1,11 @@
 #pragma once
 
 #include "vector.h"
+#include "network_data.h"
 #include "arduino_serial.h"
+
+#include <Eigen/Dense>
+#include <opencv2/core/eigen.hpp>
 
 #include <queue>
 #include <variant>
@@ -40,25 +44,12 @@ namespace command
 	using command = std::variant<move_distance, move_for_seconds, rotate_to_heading, rotate_by, rotate_for_seconds>;
 }
 
-enum remote_control_drive_state
-{
-	not_driving = 0,
-	forward,
-};
-
-enum remote_control_steer_state
-{
-	not_steering = 0,
-	left,
-	right,
-};
-
 class controller
 {
 	struct command_context
 	{
 		std::chrono::time_point<std::chrono::steady_clock> start_time;
-		maid::vector3f start_position = maid::vector3f();
+		Eigen::Vector3f start_position = Eigen::Vector3f();
 		float start_heading = 0;
 	};
 
@@ -69,27 +60,27 @@ private:
 	std::queue<command::command> command_queue;
 
 	void send_command_to_arduino(command::command command_to_send);
+	void send_rc_command_to_arduino(rc_command command);
+
+	bool next_command();
 
 public:
 	class arduino_serial arduino_serial;
 
-	remote_control_drive_state drive_state;
-	remote_control_steer_state steer_state;
-
 	bool is_remote_controlled;
 
-	maid::vector3f position;
-	// Would be estimated using Euler's method
-	// quaternion orientation;
+	Eigen::Vector3f position; // The car center position
+	Eigen::Vector3f imu_position; // Position according to the IMU
+	Eigen::Matrix3f imu_rotation = Eigen::Matrix3f::Identity();
 
-	// Convert orientation to yaw-pitch-roll Euler angles and heading should be yaw
-	// -179 to 180 degrees
+	// The yaw: -179 to 180 degrees
 	float heading;
 
 	controller();
 
 	void clear_command_queue();
 	void update();
+	//void get_direction();
 
 	auto get_command_queue()
 	{
@@ -99,27 +90,6 @@ public:
 	auto get_current_command()
 	{
 		return current_command;
-	}
-
-	bool next_command()
-	{
-		current_command.reset();
-
-		if (command_queue.empty())
-		{
-			return false;
-		}
-
-		current_command = command_queue.front();
-		command_queue.pop();
-
-		current_command_context.start_time = std::chrono::steady_clock::now();
-		current_command_context.start_position = position;
-		current_command_context.start_heading = heading;
-
-		send_command_to_arduino(current_command.value());
-
-		return true;
 	}
 	
 	void normalize_heading()

@@ -5,8 +5,8 @@
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/frustum_culling.h>
-#include <pcl/filters/passthrough.h>
+
+#include <opencv2/core/eigen.hpp>
 
 #include <optional>
 
@@ -19,18 +19,17 @@ struct detection_results
 	std::optional<std::chrono::milliseconds> processing_time = std::nullopt;
 };
 
-
-struct detection_results_3d
+struct detection_obb
 {
-	maid::vector3d center_position; // Coordinates (the origin is the left camera!)
+	pcl::PointXYZ center; // In world coordinates
+	Eigen::Matrix3f rotation_matrix; // From world to OBB
 
-	// TODO
-	double height; // Estimated height of the bounding box
-	double width; // Estimated width of the bounding box
-	double depth; // About how far the center of the object is from the left camera
+	// These are of the underlying AABB
+	pcl::PointXYZ min_point;
+	pcl::PointXYZ max_point;
 
-	int label; // What type of object was detected
-	float confidence; // Confidence rating
+	int label;
+	float confidence;
 };
 
 class vision
@@ -38,9 +37,10 @@ class vision
 private:
 	yolo_model yolo;
 
-	cv::Mat camera_mat; // Camera's intrinsic matrix
+	cv::Mat camera_matrix; // Camera's intrinsic matrix
 	cv::Mat dist_coeffs; // Camera's distortion coefficients
 	cv::Mat lidar_to_camera_transform; // Obtained from calibration (4x4)
+	cv::Mat camera_to_lidar_transform;
 
 	cv::VideoCapture capture;
 	cv::Mat camera_frame;
@@ -60,7 +60,7 @@ public:
 	vision();
 	bool initialize_camera();
 
-	void estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud);
+	std::vector<detection_obb> estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud);
 
 	bool grab_frame();
 

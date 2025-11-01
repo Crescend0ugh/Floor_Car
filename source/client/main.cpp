@@ -41,28 +41,32 @@ int main()
    
     while (!WindowShouldClose())
     {
-        std::ostringstream oss;
-        if (IsKeyDown(KEY_W))
-        {
-            oss << "W";
-        }
-        if (IsKeyDown(KEY_A))
-        {
-            oss << "A";
-        }
-        if (IsKeyDown(KEY_S))
-        {
-            oss << "S";
-        }
-        if (IsKeyDown(KEY_D))
-        {
-            oss << "D";
-        }
+        rc_command command = rc_command::none;
 
-        if (!oss.str().empty())
+        if (IsKeyDown(KEY_X))
         {
-            message m = { oss.str() };
-            client.send(0, m);
+            command = rc_command::stop;
+        }
+        else if (IsKeyDown(KEY_W))
+        {
+            command = rc_command::w;
+        }
+        else if (IsKeyDown(KEY_A))
+        {
+            command = rc_command::a;
+        }
+        else if (IsKeyDown(KEY_S))
+        {
+            command = rc_command::s;
+        }
+        else if (IsKeyDown(KEY_D))
+        {
+            command = rc_command::d;
+        }
+        
+        if (command != rc_command::none)
+        {
+            client.send(protocol::rc, command);
         }
         
         while (client.poll(server_data))
