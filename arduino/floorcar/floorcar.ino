@@ -1,95 +1,8 @@
 #include "src/write_buffer.h"
+#include "src/motor_driver.h"
 
 #include <MPU9250.h>
 #include <Wire.h>
-
-enum direction
-{
-    backward,
-    forward
-};
-
-enum side
-{
-    left = 1 << 0,
-    right = 1 << 1
-};
-
-struct motor_driver
-{
-    motor_driver() : en_a(-1), in_1(-1), in_2(-1), en_b(-1), in_3(-1), in_4(-1) {}
-    motor_driver(int en_a, int in_1, int in_2, int en_b, int in_3, int in_4) :
-            en_a(en_a), in_1(in_1), in_2(in_2), en_b(en_b), in_3(in_3), in_4(in_4)
-    {
-        pinMode(en_a, OUTPUT);
-        pinMode(in_1, OUTPUT);
-        pinMode(in_2, OUTPUT);
-        pinMode(en_b, OUTPUT);
-        pinMode(in_3, OUTPUT);
-        pinMode(in_4, OUTPUT);
-
-    }
-    ;
-    void set_speed(side s, unsigned char val)
-    {
-        if(s & left)
-        {
-            analogWrite(en_a, val);
-        }
-        if(s & right)
-        {
-            analogWrite(en_b, val);
-        }
-    }
-    void set_direction(side s, direction dir)
-    {
-        if(s & left)
-        {
-            set_left_direction(dir);
-        }
-        if(s & right)
-        {
-            set_right_direction(dir);
-        }
-    }
-    void set_left_direction(direction dir)
-    {
-        if(dir & forward)
-        {
-            digitalWrite(in_1, HIGH);
-            digitalWrite(in_2, LOW);
-        }
-        if(dir & backward)
-        {
-            digitalWrite(in_1, LOW);
-            digitalWrite(in_2, HIGH);
-        }
-    };
-    void set_right_direction(direction dir)
-    {
-        if(dir & forward)
-        {
-            digitalWrite(in_3, HIGH);
-            digitalWrite(in_4, LOW);
-        }
-        if(dir & backward)
-        {
-            digitalWrite(in_3, LOW);
-            digitalWrite(in_4, HIGH);
-        }
-    };
-
-    int en_a;
-    int in_1;
-    int in_2;
-    direction left_dir;
-    direction right_dir;
-    unsigned char left_speed;
-    unsigned char right_speed;
-    int en_b;
-    int in_3;
-    int in_4;
-};
 
 motor_driver driver;
 // MPU9250 imu(Wire, 0x68);
@@ -152,7 +65,7 @@ void send_microphone_data()
 }
 
 // A makeshift Serial.println. Outputs to the Raspberry Pi terminal.
-void log(String string)
+void send_log(String string)
 {
     write_buffer writer(log_string_header);
     char string_buffer[string.length() + 1];
@@ -203,17 +116,16 @@ void handle_rc_command()
     }
     case (rc_command::w):
     {
-
+        send_log("W");
         break;
     }
     case (rc_command::s):
     {
-
+        send_log("S");
         break;
     }
     case (rc_command::a):
     {
-
         break;
     }
     case (rc_command::d):
@@ -319,7 +231,7 @@ void loop()
         default:
         {
             // Occassionally, we hit this for no reason.
-            log("Unknown command.");
+            send_log("Unknown command.");
             break;
         }   
         }

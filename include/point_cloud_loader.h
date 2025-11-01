@@ -12,10 +12,10 @@
 
 
 
-std::vector<maid::vector3d> load_points(const std::string& path)
+std::vector<robo::vector3d> load_points(const std::string& path)
 {
 
-    std::vector<maid::vector3d> positions;
+    std::vector<robo::vector3d> positions;
     std::stringstream contents;
     {
         std::ifstream ifs(path);
@@ -27,7 +27,7 @@ std::vector<maid::vector3d> load_points(const std::string& path)
     }
 
     double rgb;
-    maid::vector3d vec;
+    robo::vector3d vec;
     while (contents >> vec.x >> vec.y >> vec.z >> rgb)
     {
         positions.push_back(vec);

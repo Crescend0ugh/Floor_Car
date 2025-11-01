@@ -21,16 +21,16 @@ asio::io_context network_io_context;
 network::server server(network_io_context, 12345);
 
 asio::io_context vision_io_context;
-class vision vision;
+robo::vision vision;
 
 // Delay between each object detection cycle
 const auto vision_interval = std::chrono::milliseconds(50);
 asio::basic_waitable_timer<std::chrono::steady_clock> vision_timer(vision_io_context, vision_interval);
 
-class controller controller;
+robo::controller controller;
 
 // Convert cv::Mat to a string and processing_time to u16
-static camera_frame serialize_detection_results(detection_results& results)
+static camera_frame serialize_detection_results(robo::detection_results& results)
 {
     cv::Mat image = results.annotated_image.value();
 
@@ -60,12 +60,12 @@ static camera_frame serialize_detection_results(detection_results& results)
     };
 }
 
-static void run_vision(network::server& server, class vision& vision, asio::steady_timer& vision_timer)
+static void run_vision(network::server& server, robo::vision& vision, asio::steady_timer& vision_timer)
 {
     if (vision.is_enabled)
     {
         bool succeeded = vision.grab_frame();
-        detection_results results;
+        robo::detection_results results;
         
         if (succeeded)
         {
@@ -124,8 +124,8 @@ int main(int argc, char* argv[])
             {
                 rc_command command;
                 network::deserialize(command, data);
+                controller.send_rc_command_to_arduino(command);
 
-                std::cout << command << std::endl;
                 break;
             }
 

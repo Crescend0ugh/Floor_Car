@@ -69,25 +69,25 @@ static pcl::PointCloud<pcl::PointXYZ>::Ptr get_biggest_cluster(pcl::PointCloud<p
     return cluster_cloud;
 }
 
-static detection_obb estimate_OBB(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud)
+static robo::detection_obb estimate_OBB(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud)
 {
     pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
     feature_extractor.setInputCloud(cloud);
     feature_extractor.compute();
 
-    detection_obb obb;
+    robo::detection_obb obb;
 
     feature_extractor.getOBB(obb.min_point, obb.max_point, obb.center, obb.rotation_matrix);
 
     return obb;
 }
 
-vision::vision()
+robo::vision::vision()
 {
     initialize_camera();
 }
 
-bool vision::load_camera_calibration_info()
+bool robo::vision::load_camera_calibration_info()
 {
     std::string file_path{ __FILE__ };
     std::filesystem::path source_path(file_path);
@@ -131,7 +131,7 @@ bool vision::load_camera_calibration_info()
     return true;
 }
 
-bool vision::initialize_camera()
+bool robo::vision::initialize_camera()
 {
     capture = cv::VideoCapture(0);
     
@@ -154,7 +154,7 @@ bool vision::initialize_camera()
     return is_enabled;
 }
 
-std::vector<detection_obb> vision::estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud)
+std::vector<robo::detection_obb> robo::vision::estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud)
 {
     pcl::PointCloud<pcl::PointXYZ>::Ptr front_point_cloud = cull_points_behind_camera(lidar_point_cloud);
     std::vector<detection_obb> obbs;
@@ -218,7 +218,7 @@ std::vector<detection_obb> vision::estimate_detection_3d_bounds(pcl::PointCloud<
     return obbs;
 }
 
-bool vision::grab_frame()
+bool robo::vision::grab_frame()
 {
     if (!is_enabled)
     {
@@ -229,7 +229,7 @@ bool vision::grab_frame()
     return capture.grab();
 }
 
-detection_results vision::detect_from_camera()
+robo::detection_results robo::vision::detect_from_camera()
 {
     detections.clear();
 

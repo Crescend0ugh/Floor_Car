@@ -7,8 +7,8 @@
 #include "math_utils.h"
 void test_vector()
 {
-    maid::vector3<double> a(0,1,1);
-    maid::vector3<double> b(1,0,1);
+    robo::vector3<double> a(0,1,1);
+    robo::vector3<double> b(1,0,1);
 
 
     std::cout << "a = " << a << "\n";
@@ -25,10 +25,10 @@ void test_vector()
     std::cout << "a != b = " << std::boolalpha << (a != b) << "\n";
     std::cout << "a == a = " << std::boolalpha << (a == a) << "\n";
 
-    maid::vector3<double> c(0, 0, 0);
+    robo::vector3<double> c(0, 0, 0);
     std::cout << c.normalize_safe();
 
-    maid::spherical_to_cartesian(1.f, 1.f, 1.f);
+    robo::spherical_to_cartesian(1.f, 1.f, 1.f);
 
 }
 

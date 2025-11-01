@@ -33,14 +33,14 @@ static Eigen::Matrix3f euler_angles_to_rotation_matrix(float roll, float pitch, 
 	return rotation_matrix;
 }
 
-controller::controller() :
+robo::controller::controller() :
 	is_remote_controlled(false),
 	imu_position(Eigen::Vector3f()),
 	heading(0.0f)
 {
 }
 
-void controller::clear_command_queue()
+void robo::controller::clear_command_queue()
 {
 	while (!command_queue.empty()) 
 	{
@@ -48,7 +48,7 @@ void controller::clear_command_queue()
 	}
 }
 
-void controller::send_command_to_arduino(command::command command_to_send)
+void robo::controller::send_command_to_arduino(robo::command::command command_to_send)
 {
 	std::string serialized;
 	zpp::bits::out out(serialized);
@@ -58,7 +58,7 @@ void controller::send_command_to_arduino(command::command command_to_send)
 	arduino_serial.write(serialized);
 }
 
-void controller::send_rc_command_to_arduino(rc_command command)
+void robo::controller::send_rc_command_to_arduino(rc_command command)
 {
 	std::string serialized;
 	zpp::bits::out out(serialized);
@@ -68,7 +68,7 @@ void controller::send_rc_command_to_arduino(rc_command command)
 	arduino_serial.write(serialized);
 }
 
-bool controller::next_command()
+bool robo::controller::next_command()
 {
 	current_command.reset();
 
@@ -89,7 +89,7 @@ bool controller::next_command()
 	return true;
 }
 
-void controller::update()
+void robo::controller::update()
 {
 	auto current_time = std::chrono::steady_clock::now();
 
