@@ -21,7 +21,7 @@ static float clamp(float val, float min = 0.f, float max = 1280.f)
 	return val > min ? (val < max ? val : max) : min;
 }
 
-float yolo_model::softmax(const float* src, float* dst, int length)
+float yolo::yolo_model::softmax(const float* src, float* dst, int length)
 {
 	float alpha = -FLT_MAX;
 	for (int c = 0; c < length; c++)
@@ -48,7 +48,7 @@ float yolo_model::softmax(const float* src, float* dst, int length)
 	return dis_sum;
 }
 
-yolo_model::yolo_model():
+yolo::yolo_model::yolo_model():
 	target_size(640),
 	prob_threshold(0.5),
 	nms_threshold(0.45)
@@ -70,7 +70,7 @@ yolo_model::yolo_model():
 
 }
 
-void yolo_model::non_max_suppression(
+void yolo::yolo_model::non_max_suppression(
 	std::vector<detection>& proposals,
 	std::vector<detection>& results,
 	int orin_h,
@@ -133,7 +133,7 @@ void yolo_model::non_max_suppression(
 	}
 }
 
-void yolo_model::generate_proposals(
+void yolo::yolo_model::generate_proposals(
 	int stride,
 	const ncnn::Mat& feat_blob,
 	std::vector<detection>& objects
@@ -193,7 +193,7 @@ void yolo_model::generate_proposals(
 	}
 }
 
-void yolo_model::detect(const cv::Mat& bgr, std::vector<detection>& detections)
+void yolo::yolo_model::detect(const cv::Mat& bgr, std::vector<detection>& detections)
 {
 	int img_w = bgr.cols;
 	int img_h = bgr.rows;
@@ -314,12 +314,12 @@ void yolo_model::detect(const cv::Mat& bgr, std::vector<detection>& detections)
 		scale, scale);
 }
 
-const char* get_detection_class_name(int id)
+std::string yolo::get_detection_class_name(int id)
 {
-	return class_names[id];
+	return std::string(class_names[id]);
 }
 
-cv::Mat annotate_detections(const cv::Mat& bgr, const std::vector<detection>& detections, std::chrono::milliseconds processing_time)
+cv::Mat yolo::annotate_detections(const cv::Mat& bgr, const std::vector<detection>& detections, std::chrono::milliseconds processing_time)
 {
 	cv::Mat image = bgr.clone();
 

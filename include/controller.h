@@ -81,7 +81,7 @@ namespace robo
 
 		void clear_command_queue();
 		void update();
-		void send_rc_command_to_arduino(rc_command command);
+		void send_rc_command_to_arduino(robo::network::rc_command command);
 
 		auto get_command_queue()
 		{

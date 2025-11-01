@@ -1,6 +1,6 @@
 #include "client/camera_feed.h"
 
-void camera_feed_panel::draw()
+void ui::camera_feed_panel::draw()
 {
     const int header_x_padding = 6;
     const int header_y_padding = 8;
@@ -59,13 +59,13 @@ void camera_feed_panel::draw()
     }
 }
 
-camera_feed_visualizer::camera_feed_visualizer(size_t feed_count):
+ui::camera_feed_visualizer::camera_feed_visualizer(size_t feed_count):
     feed_count(feed_count)
 {
     panels.resize(feed_count);
 }
 
-void camera_feed_visualizer::create_feed(int id, int x, int y, int w, int h)
+void ui::camera_feed_visualizer::create_feed(int id, int x, int y, int w, int h)
 {
     assert(id >= 0 && id < feed_count);
 
@@ -77,7 +77,7 @@ void camera_feed_visualizer::create_feed(int id, int x, int y, int w, int h)
     panel.h = h;
 }
 
-void camera_feed_visualizer::load(camera_frame& frame)
+void ui::camera_feed_visualizer::load(robo::network::camera_frame& frame)
 {
     int camera_id = frame.camera_id;
     camera_feed_panel& feed = panels[camera_id];
@@ -112,7 +112,7 @@ void camera_feed_visualizer::load(camera_frame& frame)
     feed.texture = LoadTextureFromImage(feed.pixels);
 }
 
-void camera_feed_visualizer::draw()
+void ui::camera_feed_visualizer::draw()
 {
     for (camera_feed_panel& panel : panels)
     {
@@ -120,7 +120,7 @@ void camera_feed_visualizer::draw()
     }
 }
 
-void camera_feed_visualizer::clear()
+void ui::camera_feed_visualizer::clear()
 {
     for (camera_feed_panel& panel : panels)
     {

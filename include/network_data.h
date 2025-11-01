@@ -9,36 +9,39 @@
 #include <string>
 #include <chrono>
 
-enum protocol
+namespace robo
 {
-    placeholder = 0,
-    camera_feed,
-    rc,
-};
+    namespace network
+    {
+        enum protocol
+        {
+            placeholder = 0,
+            camera_feed,
+            rc,
+        };
 
-struct camera_frame
-{
-    uint8_t camera_id;
-    int frame_height;
-    int frame_width;
-    std::vector<uchar> bgr_pixels; // [B, G, R, B, G, R, ...]
-    uint16_t processing_time;
-};
+        // Server to client
+        struct camera_frame
+        {
+            uint8_t camera_id;
+            int frame_height;
+            int frame_width;
+            std::vector<uchar> bgr_pixels; // [B, G, R, B, G, R, ...]
+            uint16_t processing_time;
+        };
 
-enum rc_command
-{
-    none = 0,
-    stop,
-    w,
-    s,
-    a,
-    d
-};
-
-struct message
-{
-    std::string str;
-};
+        // Client to server
+        enum rc_command
+        {
+            none = 0,
+            stop,
+            w,
+            s,
+            a,
+            d
+        };
+    }
+}
 
 struct ClientMessage
 {

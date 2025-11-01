@@ -70,10 +70,10 @@ int main()
     cv::getOptimalNewCameraMatrix(camera_matrix, dist_coeffs, image_size, 1.0);
     cv::undistort(input_matrix, undistorted_matrix, camera_matrix, dist_coeffs);
 
-	yolo_model yolo;
-	std::vector<detection> detections;
+	yolo::yolo_model yolo;
+	std::vector<yolo::detection> detections;
 	yolo.detect(undistorted_matrix, detections);
-	cv::Mat annotated =  annotate_detections(undistorted_matrix, detections);
+	cv::Mat annotated = yolo::annotate_detections(undistorted_matrix, detections);
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr point_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::io::loadPCDFile<pcl::PointXYZ>((data_path / "point_cloud.pcd").string(), *point_cloud);

@@ -5,6 +5,8 @@
 
 #include "yolo_model.h"
 
+using namespace yolo;
+
 static void draw_results(const cv::Mat& bgr, const std::vector<detection>& objects, std::chrono::milliseconds runtime, bool is_camera_feed)
 {
 	cv::Mat image = bgr.clone();

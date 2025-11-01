@@ -87,16 +87,21 @@ robo::vision::vision()
     initialize_camera();
 }
 
-bool robo::vision::load_camera_calibration_info()
+void robo::vision::load_camera_calibration_info()
 {
-    std::string file_path{ __FILE__ };
-    std::filesystem::path source_path(file_path);
-    std::filesystem::path calibration_results_path = source_path.parent_path().parent_path().parent_path().append("content").append("calibration_results");
+    std::filesystem::path source_path(std::string(__FILE__));
+
+    std::filesystem::path calibration_results_path = source_path.parent_path().parent_path()
+        .append("content").append("calibration_results");
 
     if (!std::filesystem::exists(calibration_results_path))
     {
         std::cerr << "No 'calibration_results' directory could be found." << std::endl;
-        return false;
+
+        is_extrinsics_loaded = false;
+        is_intrinsics_loaded = false;
+
+        return;
     }
 
     cv::FileStorage extrinsics((calibration_results_path / "extrinsics.yml").string(), cv::FileStorage::READ);
@@ -105,11 +110,13 @@ bool robo::vision::load_camera_calibration_info()
         extrinsics["T"] >> lidar_to_camera_transform; // This should be column major
         camera_to_lidar_transform = lidar_to_camera_transform.inv();
         // MAKE THIS A 4x4 MATRIX IF IT ISN'T !!!
+
+        is_extrinsics_loaded = true;
     }
     else
     {
         std::cerr << "Could not open extrinsics.yml" << std::endl;
-        return false;
+        is_extrinsics_loaded = false;
     }
 
     cv::FileStorage intrinsics((calibration_results_path / "intrinsics.yml").string(), cv::FileStorage::READ);
@@ -121,14 +128,14 @@ bool robo::vision::load_camera_calibration_info()
 
         // Apply distortion coefficients
         cv::getOptimalNewCameraMatrix(camera_matrix, dist_coeffs, image_size, 1.0);
+
+        is_intrinsics_loaded = true;
     }
     else
     {
         std::cerr << "Could not open intrinsics.yml to get the camera's intrinsic matrix" << std::endl;
-        return false;
+        is_intrinsics_loaded = false;
     }
-
-    return true;
 }
 
 bool robo::vision::initialize_camera()
@@ -141,23 +148,26 @@ bool robo::vision::initialize_camera()
         is_enabled = false;
     }
 
-#ifdef RPI_UBUNTU
-    calibration_info_loaded = load_camera_calibration_info();
+    load_camera_calibration_info();
 
-    if (!calibration_info_loaded)
+    if (!is_intrinsics_loaded && !is_extrinsics_loaded)
     {
         std::cerr << "Warning: Unable to load necessary calibration data." << std::endl;
         is_enabled = false;
     }
-#endif
 
     return is_enabled;
 }
 
-std::vector<robo::detection_obb> robo::vision::estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud)
+std::vector<robo::detection_obb> robo::vision::estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud) const
 {
     pcl::PointCloud<pcl::PointXYZ>::Ptr front_point_cloud = cull_points_behind_camera(lidar_point_cloud);
     std::vector<detection_obb> obbs;
+
+    if (!is_intrinsics_loaded || !is_extrinsics_loaded)
+    {
+        return obbs;
+    }
 
     for (int detection_id = 0; detection_id < detections.size(); ++detection_id)
     {
@@ -229,42 +239,82 @@ bool robo::vision::grab_frame()
     return capture.grab();
 }
 
-robo::detection_results robo::vision::detect_from_camera()
+void robo::vision::detect_from_camera()
 {
     detections.clear();
-
-    detection_results results;
-    results.camera_id = 0;
-    results.detections = &detections;
 
     capture.retrieve(camera_frame);
 
     if (camera_frame.empty())
     {
         std::cerr << "Warning: Captured empty frame from camera" << std::endl;
-        return results;
+        return;
     }
 
-    // These timestamps are totally unneeded if running without a client
-    // But their effects on performance are probably negligible
+    cv::Mat& final_image = camera_frame;
+
+    // Undistort the capture if we loaded intrinsics and run object detection on the undistorted result instead
+    if (is_intrinsics_loaded)
+    {
+        undistorted_camera_frame = cv::Mat();
+        cv::undistort(camera_frame, undistorted_camera_frame, camera_matrix, dist_coeffs);
+        final_image = undistorted_camera_frame;
+    }
+
+    // Get processing time for the client
     auto start_time = std::chrono::high_resolution_clock::now();
-    yolo.detect(camera_frame, detections);
+    yolo.detect(final_image, detections);
     auto end_time = std::chrono::high_resolution_clock::now();
 
-    // Don't do this extra work if no clients are connected
-    if (is_client_connected)
+    yolo_processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+}
+
+robo::network::camera_frame robo::vision::serialize_detection_results()
+{
+    cv::Mat image = yolo::annotate_detections(
+        (is_intrinsics_loaded) ? undistorted_camera_frame : camera_frame,
+        detections,
+        yolo_processing_time
+    );
+
+    std::vector<uchar> pixels;
+
+    if (image.isContinuous()) // If the matrix is continuous (no padding between rows), copy all data at once
     {
-        auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-
-        cv::Mat annotated = annotate_detections(
-            camera_frame,
-            detections,
-            processing_time
-        );
-
-        results.annotated_image = annotated;
-        results.processing_time = processing_time;
+        pixels.assign(image.data, image.data + image.total() * image.elemSize());
+    }
+    else  // If the matrix is not continuous, copy row by row
+    {
+        for (int i = 0; i < image.rows; ++i)
+        {
+            pixels.insert(pixels.end(), image.ptr<uchar>(i), image.ptr<uchar>(i) + image.cols * image.elemSize());
+        }
     }
 
-    return results;
+    return robo::network::camera_frame
+    {
+        .camera_id = 0,
+        .frame_height = image.rows,
+        .frame_width = image.cols,
+        .bgr_pixels = pixels,
+        .processing_time = static_cast<uint16_t>(yolo_processing_time.count()),
+    };
+}
+
+float robo::vision::compute_delta_yaw_to_detection_center(const yolo::detection& detection) const
+{
+    if (!is_intrinsics_loaded)
+    {
+        return 0.0f;
+    }
+
+    float detection_center_x = ((detection.rect.br() + detection.rect.tl()) / 2).x;
+
+    // Subtract by principal point x-coordinate (pixels)
+    double delta_x = detection_center_x - camera_matrix.at<double>(0, 2);
+
+    // Get the angle, given x focal length
+    double angle_rad = std::atan(delta_x / camera_matrix.at<double>(0, 0));
+
+    return angle_rad * (180.0f / M_PI);
 }

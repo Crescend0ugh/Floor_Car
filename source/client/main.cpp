@@ -21,6 +21,9 @@
 std::string ip = "127.0.0.1"; // "127.0.0.1"
 short port = 12345;
 
+asio::io_context io_context;
+network::client client(io_context, ip, port);
+
 int main()
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -29,53 +32,51 @@ int main()
     SetWindowPosition(GetScreenWidth() / 2, GetScreenHeight() / 2);
     SetTargetFPS(60);
 
-    asio::io_context io_context;
-    network::client client(io_context, ip, port);
-    std::thread thread([&io_context] {
+    std::thread thread([&] {
         io_context.run();
     });
 
     network::received_data server_data;
 
-    camera_feed_visualizer camera_feed_visualizer(1);
+    ui::camera_feed_visualizer camera_feed_visualizer(1);
    
     while (!WindowShouldClose())
     {
-        rc_command command = rc_command::none;
+        robo::network::rc_command command = robo::network::rc_command::none;
 
         if (IsKeyDown(KEY_X))
         {
-            command = rc_command::stop;
+            command = robo::network::rc_command::stop;
         }
         else if (IsKeyDown(KEY_W))
         {
-            command = rc_command::w;
+            command = robo::network::rc_command::w;
         }
         else if (IsKeyDown(KEY_A))
         {
-            command = rc_command::a;
+            command = robo::network::rc_command::a;
         }
         else if (IsKeyDown(KEY_S))
         {
-            command = rc_command::s;
+            command = robo::network::rc_command::s;
         }
         else if (IsKeyDown(KEY_D))
         {
-            command = rc_command::d;
+            command = robo::network::rc_command::d;
         }
         
-        if (command != rc_command::none)
+        if (command != robo::network::rc_command::none)
         {
-            client.send(protocol::rc, command);
+            client.send(robo::network::protocol::rc, command);
         }
         
         while (client.poll(server_data))
         {
             switch (server_data.protocol_id)
             {
-            case (protocol::camera_feed):
+            case (robo::network::protocol::camera_feed):
             {
-                camera_frame frame;
+                robo::network::camera_frame frame;
                 network::deserialize(frame, server_data);
 
                 camera_feed_visualizer.load(frame);

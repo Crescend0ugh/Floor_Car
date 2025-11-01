@@ -58,7 +58,7 @@ void robo::controller::send_command_to_arduino(robo::command::command command_to
 	arduino_serial.write(serialized);
 }
 
-void robo::controller::send_rc_command_to_arduino(rc_command command)
+void robo::controller::send_rc_command_to_arduino(robo::network::rc_command command)
 {
 	std::string serialized;
 	zpp::bits::out out(serialized);

@@ -29,35 +29,16 @@ asio::basic_waitable_timer<std::chrono::steady_clock> vision_timer(vision_io_con
 
 robo::controller controller;
 
-// Convert cv::Mat to a string and processing_time to u16
-static camera_frame serialize_detection_results(robo::detection_results& results)
+// Objects we're looking for
+std::vector<std::string> valid_detection_class_names = {"apple", "orange", "sports ball"};
+
+static bool is_valid_detection(int label)
 {
-    cv::Mat image = results.annotated_image.value();
-
-    std::vector<uchar> pixels;
-
-    if (image.isContinuous()) 
-    {
-        // If the matrix is continuous (no padding between rows), copy all data at once
-        pixels.assign(image.data, image.data + image.total() * image.elemSize());
-    }
-    else 
-    {
-        // If the matrix is not continuous, copy row by row
-        for (int i = 0; i < image.rows; ++i) 
-        {
-            pixels.insert(pixels.end(), image.ptr<uchar>(i), image.ptr<uchar>(i) + image.cols * image.elemSize());
-        }
-    }
-
-    return camera_frame
-    {
-        .camera_id = results.camera_id,
-        .frame_height = image.rows,
-        .frame_width = image.cols,
-        .bgr_pixels = pixels,
-        .processing_time = static_cast<uint16_t>(results.processing_time.value().count()),
-    };
+    return std::find(
+        valid_detection_class_names.begin(), 
+        valid_detection_class_names.end(), 
+        yolo::get_detection_class_name(label)
+    ) == valid_detection_class_names.end();
 }
 
 static void run_vision(network::server& server, robo::vision& vision, asio::steady_timer& vision_timer)
@@ -65,29 +46,49 @@ static void run_vision(network::server& server, robo::vision& vision, asio::stea
     if (vision.is_enabled)
     {
         bool succeeded = vision.grab_frame();
-        robo::detection_results results;
-        
+
         if (succeeded)
         {
-            results = std::move(vision.detect_from_camera());
+            vision.detect_from_camera();
             // TODO: Estimate 3D positions of detection bounding box centers
             // vision.estimate_3d_positions(...);
         }
 
-        // Send vision results to clients, if any are connected
-        if (vision.is_client_connected)
+        // Send results to clients, if any are connected
+        if (server.get_client_count() > 0)
         {
-            if (results.annotated_image.has_value())
-            {
-                auto serialized = serialize_detection_results(results);
-                server.send(protocol::camera_feed, serialized);
-            }
+            auto serialized = vision.serialize_detection_results();
+            server.send(robo::network::protocol::camera_feed, serialized);
         }
     }
 
     // Schedule next object detection cycle
     vision_timer.expires_at(std::chrono::steady_clock::now() + vision_interval);
     vision_timer.async_wait(std::bind(&run_vision, std::ref(server), std::ref(vision), std::ref(vision_timer)));
+}
+
+static void handle_client_messages()
+{
+    network::received_data data;
+    while (server.poll(data))
+    {
+        switch (data.protocol_id)
+        {
+
+        case (robo::network::protocol::rc):
+        {
+            robo::network::rc_command command;
+            network::deserialize(command, data);
+            controller.send_rc_command_to_arduino(command);
+
+            break;
+        }
+
+        default:
+            break;
+
+        }
+    }
 }
 
 int main(int argc, char* argv[]) 
@@ -101,39 +102,23 @@ int main(int argc, char* argv[])
     });
     
     vision_timer.async_wait(std::bind(&run_vision, std::ref(server), std::ref(vision), std::ref(vision_timer)));
-    
-    if (!controller.arduino_serial.is_connected())
-    {
-        std::cerr << "||| Warning |||: Failed to connect to Arduino UNO" << std::endl;
-    };
 
-    network::received_data data;
     while (1)
     {
-        vision.is_client_connected = server.get_client_count() > 0;
-
         controller.update();
 
-        // READ
-        while (server.poll(data))
+        for (const auto& detection : vision.detections)
         {
-            switch (data.protocol_id)
+            if (!is_valid_detection(detection.label))
             {
+                continue;
+            };
 
-            case (protocol::rc):
-            {
-                rc_command command;
-                network::deserialize(command, data);
-                controller.send_rc_command_to_arduino(command);
-
-                break;
-            }
-
-            default:
-                break;
-
-            }
+            float delta_yaw = vision.compute_delta_yaw_to_detection_center(detection);
+            // std::cout << delta_yaw << std::endl;
         }
+
+        handle_client_messages();
 
         // TODO
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
