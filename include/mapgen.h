@@ -3,3 +3,23 @@
 //
 
 #pragma once
+#include <pcl/point_types.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/common/io.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/surface/gp3.h>
+#include "vector.h"
+
+namespace robo
+{
+    struct point_cloud
+    {
+        point_cloud() : points(new pcl::PointCloud<pcl::PointXYZ>()) {}
+
+        pcl::PolygonMesh reconstruct_mesh_from_points() const;
+        void add_point(const vector3f& point);
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr points;
+
+    };
+}

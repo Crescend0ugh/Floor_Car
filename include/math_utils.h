@@ -6,7 +6,7 @@
 #include "vector.h"
 #include <numbers>
 
-namespace maid
+namespace robo
 {
 
 
@@ -27,6 +27,12 @@ namespace maid
     static constexpr T radians_to_degrees(T rads)
     {
         return {rads * static_cast<T>(180) * std::numbers::inv_pi_v<T>};
+    }
+
+    template<typename T, typename Period>
+    static constexpr vector3<T> get_delta_velocity(vector3<T> acceleration, std::chrono::duration<double, Period> delta_time)
+    {
+        return acceleration * std::chrono::duration<double>(delta_time);
     }
 
 }

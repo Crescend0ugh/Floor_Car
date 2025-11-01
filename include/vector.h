@@ -9,7 +9,7 @@
 #include <format>
 #include <math.h>
 
-namespace maid
+namespace robo
 {
     template<typename T>
     struct vector3 {
