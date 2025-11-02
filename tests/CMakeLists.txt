@@ -14,6 +14,7 @@ if(WIN32)
 endif()
 
 find_package(OpenCV REQUIRED)
+find_package(PCL REQUIRED)
 
 foreach(SUBDIRECTORY IN LISTS TEST_SUBDIRECTORIES)
 	file(GLOB TEST_SOURCES ${CMAKE_SOURCE_DIR}/source/*.cpp)

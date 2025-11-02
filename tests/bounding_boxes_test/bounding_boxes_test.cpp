@@ -15,8 +15,7 @@
 #include <filesystem>
 #include <limits>
 
-const std::filesystem::path data_path = std::filesystem::path(std::string(__FILE__))
-	.parent_path().parent_path().parent_path().append("tests").append("bounding_boxes_test").append("data");
+const std::filesystem::path data_path = std::filesystem::path(std::string(__FILE__)).parent_path().append("data");
 
 const float near_plane_distance = 0.1f;
 
@@ -163,7 +162,7 @@ int main()
         log_point_cloud_size(filtered_point_cloud);
 
         std::cout << "Detection " << detection_id 
-            << " of class " << get_detection_class_name(detections[detection_id].label) 
+            << " of class " << yolo::get_detection_class_name(detections[detection_id].label) 
             << " with probability " << detections[detection_id].prob << std::endl;
 
         // Cluster the points

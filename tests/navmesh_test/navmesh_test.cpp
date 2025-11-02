@@ -1,9 +1,12 @@
 #include "navmesh.h"
 #include "path.h"
 #include "raylib.h"
+#include "navgeometry.h"
 
 #include <iostream>
 #include <vector>
+
+using namespace robo;
 
 void draw_path_points(path* path)
 {
@@ -175,14 +178,14 @@ void navmesh_visualizer::draw_wireframe()
 
 int main()
 {
-	agent_params params;
+	navigation_params params;
 	params.cell_height = 0.2f;
 	params.cell_size = 0.3f;
 	params.agent_height = 1.0f;
 	params.agent_radius = 0.5f;
 	params.max_slope = 20.0f;
 
-	navmesh* nmesh = new navmesh(&params);
+	navmesh* nmesh = new navmesh(params);
 	navcontext* context = nmesh->get_context();
 	InputGeom* geometry = new InputGeom();
 
@@ -191,7 +194,29 @@ int main()
 	geometry->load(context, path_to_mesh);
 	context->dump_log("Geometry log:");
 
-	nmesh->on_mesh_changed(geometry);
+	std::vector<float> verts;
+	std::vector<int> tris;
+
+	const int* mesh_tris = geometry->getMesh()->getTris();
+	const int mesh_tris_count = geometry->getMesh()->getTriCount();
+
+	for (int i = 0; i < mesh_tris_count; ++i)
+	{
+		tris.push_back(mesh_tris[i]);
+	}
+
+	const float* mesh_verts = geometry->getMesh()->getVerts();
+	const int mesh_verts_count = geometry->getMesh()->getVertCount();
+
+	for (int i = 0; i < mesh_verts_count; ++i)
+	{
+		verts.push_back(mesh_verts[i]);
+	}
+
+	navgeometry navgeo;
+	navgeo.load(verts, tris);
+
+	nmesh->on_mesh_changed(&navgeo);
 	nmesh->build();
 
 	context->dump_log("Build log: ");

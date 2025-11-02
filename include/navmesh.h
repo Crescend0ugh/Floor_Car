@@ -1,81 +1,100 @@
 #pragma once
 
-#include <Recast.h>
-#include <DetourNavMesh.h>
-#include <DetourNavMeshQuery.h>
-#include <InputGeom.h>
+#include "Recast.h"
+#include "DetourNavMesh.h"
+#include "DetourNavMeshQuery.h"
+#include "InputGeom.h"
 
 #include "navcontext.h"
+#include "navgeometry.h"
 
 
-// Default values for all fields but edge_max_error were chosen arbitrarily and should definitely be set!
-struct agent_params
+
+namespace robo
 {
-    // If the agent were a circle, this would be its radius, in voxels
-    float agent_radius = 0.25f;
+    // Default values for all fields but edge_max_error were chosen arbitrarily and should definitely be set!
+    struct navigation_params
+    {
+        // If the agent were a circle, this would be its radius, in meters
+        float agent_radius = 0.25f;
 
-    // In voxels
-    float agent_height = 0.25f;
+        // Height in meters
+        float agent_height = 0.25f;
 
-    // Maximum slope angle (0, 90 deg) we can move up
-    float max_slope = 0.0f;
+        // Maximum slope angle (0, 90 deg) we can move up
+        float max_slope = 0.0f;
 
-    // Maximum height of obstacles we can step over (probably 0?)
-    float max_climb = 0.0f;
+        // Maximum height of obstacles we can step over (probably 0?)
+        float max_climb = 0.0f;
 
-    // x and z size of each cell, in world units (NEEDS TUNING)
-    float cell_size = 20.0f;
+        // x and z size of each cell, in meters (NEEDS TUNING)
+        float cell_size = 20.0f;
 
-    // y height of each cell, in world units (NEEDS TUNING)
-    float cell_height = 10.0f;
+        // y height of each cell, in meters (NEEDS TUNING)
+        float cell_height = 10.0f;
 
-    // Suggested by Docs
-    float edge_max_error = 1.3f;
-};
+        // Size of the tiles in voxels
+        float tile_size = 20.0f;
+        
+        // Edge max error in voxels
+        float edge_max_error = 1.3f;
 
-class navmesh
-{
-    rcConfig config;
-    navcontext* context = nullptr;
+        // Edge max length in world units
+        float edge_max_len = 0.5f;
 
-    rcHeightfield* height_field = nullptr;
-    rcCompactHeightfield* compact_height_field = nullptr;
-    rcContourSet* contour_set = nullptr;
-    rcPolyMesh* poly_mesh = nullptr;
-    rcPolyMeshDetail* poly_mesh_detail = nullptr;
-    dtNavMesh* navmesh_internal = nullptr;
-    dtNavMeshQuery* nav_query = nullptr;
+        float border_offset = 3.0f;
 
-    InputGeom* geometry = nullptr;
+        // Detail sample distance in voxels
+        float detail_sample_dist = 6.0f;
 
-    unsigned char* tri_areas = nullptr;
+        // Detail sample max error in voxel heights.
+        float detail_sample_max_error = 1.0f;
+    };
 
-    float tile_size = 30.0f;
-    int tile_tri_count = 0;
-    int max_tiles = 0;
-    int max_polys_per_tile = 0;
+    class navmesh
+    {
+        rcConfig config;
+        navcontext* context = nullptr;
 
-    float last_built_tile_bmin[3] = { 0.0f };
-    float last_built_tile_bmax[3] = { 0.0f };
+        rcHeightfield* height_field = nullptr;
+        rcCompactHeightfield* compact_height_field = nullptr;
+        rcContourSet* contour_set = nullptr;
+        rcPolyMesh* poly_mesh = nullptr;
+        rcPolyMeshDetail* poly_mesh_detail = nullptr;
+        dtNavMesh* navmesh_internal = nullptr;
+        dtNavMeshQuery* nav_query = nullptr;
 
-private:
-    void cleanup();
+        navgeometry* geometry = nullptr;
 
-    void build_tile(const float* position);
-    void remove_tile(const float* position);
-    void build_all_tiles();
-    void remove_all_tiles();
-    unsigned char* build_tile_mesh(const int tx, const int ty, const float* bmin, const float* bmax, int& data_size);
+        unsigned char* tri_areas = nullptr;
 
-public:
-    navmesh(agent_params* params);
-    ~navmesh();
+        float tile_size = 20.0f;
+        int tile_tri_count = 0;
+        int max_tiles = 0;
+        int max_polys_per_tile = 0;
 
-    bool build();
-    void on_mesh_changed(InputGeom* new_geometry);
-    void get_tile_pos(const float* position, int& tx, int& ty);
+        float last_built_tile_bmin[3] = { 0.0f };
+        float last_built_tile_bmax[3] = { 0.0f };
 
-    navcontext* get_context() { return context; };
-    dtNavMesh* get_navmesh_internal() { return navmesh_internal; };
-    dtNavMeshQuery* get_nav_query() { return nav_query; };
-};
+    private:
+        void cleanup();
+
+        void build_tile(const float* position);
+        void remove_tile(const float* position);
+        void build_all_tiles();
+        void remove_all_tiles();
+        unsigned char* build_tile_mesh(const int tx, const int ty, const float* bmin, const float* bmax, int& data_size);
+
+    public:
+        navmesh(const navigation_params& params);
+        ~navmesh();
+
+        bool build();
+        void on_mesh_changed(navgeometry* new_geometry);
+        void get_tile_pos(const float* position, int& tx, int& ty);
+
+        navcontext* get_context() { return context; };
+        dtNavMesh* get_navmesh_internal() { return navmesh_internal; };
+        dtNavMeshQuery* get_nav_query() { return nav_query; };
+    };
+}

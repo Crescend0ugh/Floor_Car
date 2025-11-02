@@ -8,9 +8,11 @@ This repository contains the code used for the prototype.
 - [raylib](https://www.raylib.com/): 3D rendering and visualization for testing
 - [asio (standalone)](https://github.com/chriskohlhoff/asio): Socket networking and asynchronous I/O
 - [zpp_bits](https://github.com/eyalz800/zpp_bits): Binary serialization for networking
-- [OpenCV](https://opencv.org/): Computer vision, object detection and stereo calibration
-	- [Ultralytics YOLO11](https://docs.ultralytics.com/models/yolo11/): Object detection model
-	- [ncnn](https://github.com/Tencent/ncnn): Lightweight neural network inference with good performance on Raspberry Pi
+- [OpenCV](https://opencv.org/): Computer vision, object detection and camera calibration
+- [Ultralytics YOLO11](https://docs.ultralytics.com/models/yolo11/): Object detection model used
+- [ncnn](https://github.com/Tencent/ncnn): Lightweight neural network inference with good performance on Raspberry Pi
+- [PCL](https://pointclouds.org/): Point cloud searching and filtering
+- [Serialib](https://github.com/imabot2/serialib?tab=readme-ov-file): Serial communication between the Arduino UNO and Raspberry Pi
 
 ## Installing OpenCV (Windows)
 OpenCV is not included directly in the repository. Building from its source increases build times dramatically, 

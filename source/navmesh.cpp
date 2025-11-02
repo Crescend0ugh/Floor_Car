@@ -2,11 +2,12 @@
 #include <DetourNavMeshBuilder.h>
 
 #include <cstring>
+#include <iostream>
 
 #include "navmesh.h"
 #include "math.h"
 
-inline unsigned int next_pow2(unsigned int v)
+static inline unsigned int next_pow2(unsigned int v)
 {
 	v--;
 	v |= v >> 1;
@@ -18,7 +19,7 @@ inline unsigned int next_pow2(unsigned int v)
 	return v;
 }
 
-inline unsigned int ilog2(unsigned int v)
+static inline unsigned int ilog2(unsigned int v)
 {
 	unsigned int r;
 	unsigned int shift;
@@ -30,35 +31,40 @@ inline unsigned int ilog2(unsigned int v)
 	return r;
 }
 
-navmesh::navmesh(agent_params* params)
+robo::navmesh::navmesh(const navigation_params& params)
 {
 	context = new navcontext();
 	nav_query = dtAllocNavMeshQuery();
 
-	config.cs = params->cell_size;
-	config.ch = params->cell_height;
-	config.walkableSlopeAngle = params->max_slope;
+	config.cs = params.cell_size;
+	config.ch = params.cell_height;
+	config.walkableSlopeAngle = params.max_slope;
 
-	config.walkableHeight = (int)ceilf(params->agent_height / config.ch);
-	config.walkableClimb = (int)ceilf(params->max_climb / config.ch);
+	config.walkableHeight = (int)ceilf(params.agent_height / config.ch);
+	config.walkableClimb = (int)ceilf(params.max_climb / config.ch);
 
-	config.walkableRadius = (int)ceilf(params->agent_radius / config.cs);
-	config.borderSize = config.walkableRadius + 3;
+	config.walkableRadius = (int)ceilf(params.agent_radius / config.cs);
+	config.borderSize = config.walkableRadius + params.border_offset;
 
-	config.maxEdgeLen = config.walkableRadius * 8;
-	config.maxSimplificationError = params->edge_max_error;
+	//config.maxEdgeLen = config.walkableRadius * 8;
+	config.maxEdgeLen = (int)(params.edge_max_len / config.cs);
+	config.maxSimplificationError = params.edge_max_error;
 
 	config.minRegionArea = rcSqr(8.0f);
 	config.mergeRegionArea = rcSqr(20.0f);
 
+	config.tileSize = params.tile_size;
+	config.width = config.tileSize + config.borderSize * 2;
+	config.height = config.tileSize + config.borderSize * 2;
+
 	config.maxVertsPerPoly = 6.0f;
 
 	// To be tuned
-	config.detailSampleDist = 6.0f;
-	config.detailSampleMaxError = 1.0f;
+	config.detailSampleDist = params.detail_sample_dist < 0.9f ? 0 : config.cs * params.detail_sample_dist;
+	config.detailSampleMaxError = config.ch * params.detail_sample_max_error;
 }
 
-navmesh::~navmesh()
+robo::navmesh::~navmesh()
 {
 	cleanup();
 
@@ -69,7 +75,7 @@ navmesh::~navmesh()
 	navmesh_internal = nullptr;
 }
 
-void navmesh::cleanup()
+void robo::navmesh::cleanup()
 {
 	rcFreeHeightField(height_field);
 	height_field = nullptr;
@@ -87,9 +93,9 @@ void navmesh::cleanup()
 	poly_mesh_detail = nullptr;
 }
 
-bool navmesh::build()
+bool robo::navmesh::build()
 {
-	if (!geometry || !geometry->getMesh())
+	if (!geometry || !geometry->has_geometry())
 	{
 		context->log(RC_LOG_ERROR, "navmesh::build: No vertices and triangles.");
 		return false;
@@ -104,9 +110,9 @@ bool navmesh::build()
 	}
 
 	dtNavMeshParams params;
-	rcVcopy(params.orig, geometry->getNavMeshBoundsMin());
-	params.tileWidth = tile_size * config.cs;
-	params.tileHeight = tile_size * config.cs;
+	rcVcopy(params.orig, geometry->min_bounds);
+	params.tileWidth = config.tileSize * config.cs;
+	params.tileHeight = config.tileSize * config.cs;
 	params.maxTiles = max_tiles;
 	params.maxPolys = max_polys_per_tile;
 
@@ -131,21 +137,20 @@ bool navmesh::build()
 	return true;
 }
 
-void navmesh::on_mesh_changed(InputGeom* new_geometry)
+void robo::navmesh::on_mesh_changed(navgeometry* new_geometry)
 {
 	geometry = new_geometry;
 
 	if (geometry) 
 	{
 		int width = 0, height = 0;
-		const float* bmin = geometry->getNavMeshBoundsMin();
-		const float* bmax = geometry->getNavMeshBoundsMax();
+		const float* bmin = geometry->min_bounds;
+		const float* bmax = geometry->max_bounds;
 
 		rcCalcGridSize(bmin, bmax, config.cs, &width, &height);
 
-		const int ts = (int)tile_size;
-		const int tile_width = (width + ts - 1) / ts;
-		const int tile_height = (height + ts - 1) / ts;
+		const int tile_width = (int)(((float)width + config.tileSize - 1) / config.tileSize);
+		const int tile_height = (int)(((float)height + config.tileSize - 1) / config.tileSize);
 
 		// Max tiles and max polys affect how the tile IDs are caculated.
 		// There are 22 bits available for identifying a tile and a polygon.
@@ -168,15 +173,15 @@ void navmesh::on_mesh_changed(InputGeom* new_geometry)
 	navmesh_internal = 0;
 }
 
-void navmesh::build_tile(const float* position)
+void robo::navmesh::build_tile(const float* position)
 {
 	if (!geometry) return;
 	if (!navmesh_internal) return;
 
-	const float* bmin = geometry->getNavMeshBoundsMin();
-	const float* bmax = geometry->getNavMeshBoundsMax();
+	const float* bmin = geometry->min_bounds;
+	const float* bmax = geometry->max_bounds;
 
-	const float ts = tile_size * config.cs;
+	const float ts = config.tileSize * config.cs;
 	const int tx = (int)((position[0] - bmin[0]) / ts);
 	const int ty = (int)((position[2] - bmin[2]) / ts);
 
@@ -208,26 +213,26 @@ void navmesh::build_tile(const float* position)
 	}
 }
 
-void navmesh::get_tile_pos(const float* position, int& tx, int& ty)
+void robo::navmesh::get_tile_pos(const float* position, int& tx, int& ty)
 {
 	if (!geometry) return;
 
-	const float* bmin = geometry->getNavMeshBoundsMin();
+	const float* bmin = geometry->min_bounds;
 
-	const float ts = tile_size * config.cs;
+	const float ts = config.tileSize * config.cs;
 	tx = (int)((position[0] - bmin[0]) / ts);
 	ty = (int)((position[2] - bmin[2]) / ts);
 }
 
-void navmesh::remove_tile(const float* position)
+void robo::navmesh::remove_tile(const float* position)
 {
 	if (!geometry) return;
 	if (!navmesh_internal) return;
 
-	const float* bmin = geometry->getNavMeshBoundsMin();
-	const float* bmax = geometry->getNavMeshBoundsMax();
+	const float* bmin = geometry->min_bounds;
+	const float* bmax = geometry->max_bounds;
 
-	const float ts = tile_size * config.cs;
+	const float ts = config.tileSize * config.cs;
 	const int tx = (int)((position[0] - bmin[0]) / ts);
 	const int ty = (int)((position[2] - bmin[2]) / ts);
 
@@ -242,19 +247,20 @@ void navmesh::remove_tile(const float* position)
 	navmesh_internal->removeTile(navmesh_internal->getTileRefAt(tx, ty, 0), 0, 0);
 }
 
-void navmesh::build_all_tiles()
+void robo::navmesh::build_all_tiles()
 {
 	if (!geometry) return;
 	if (!navmesh_internal) return;
 
-	const float* bmin = geometry->getNavMeshBoundsMin();
-	const float* bmax = geometry->getNavMeshBoundsMax();
+	const float* bmin = geometry->min_bounds;
+	const float* bmax = geometry->max_bounds;
 	int gw = 0, gh = 0;
 	rcCalcGridSize(bmin, bmax, config.cs, &gw, &gh);
-	const int ts = (int)tile_size;
-	const int tw = (gw + ts - 1) / ts;
-	const int th = (gh + ts - 1) / ts;
-	const float tcs = tile_size * config.cs;
+
+	const int tw = (int)(((float)gw + config.tileSize - 1) / config.tileSize);
+	const int th = (int)(((float)gh + config.tileSize - 1) / config.tileSize);
+
+	const float tcs = config.tileSize * config.cs;
 
 	for (int y = 0; y < th; ++y)
 	{
@@ -283,15 +289,15 @@ void navmesh::build_all_tiles()
 	}
 }
 
-void navmesh::remove_all_tiles()
+void robo::navmesh::remove_all_tiles()
 {
 	if (!geometry || !navmesh_internal) return;
 
-	const float* bmin = geometry->getNavMeshBoundsMin();
-	const float* bmax = geometry->getNavMeshBoundsMax();
+	const float* bmin = geometry->min_bounds;
+	const float* bmax = geometry->max_bounds;
 	int gw = 0, gh = 0;
 	rcCalcGridSize(bmin, bmax, config.cs, &gw, &gh);
-	const int ts = (int)tile_size;
+	const int ts = (int)config.tileSize;
 	const int tw = (gw + ts - 1) / ts;
 	const int th = (gh + ts - 1) / ts;
 
@@ -305,9 +311,9 @@ void navmesh::remove_all_tiles()
 	}
 }
 
-unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float* bmin, const float* bmax, int& data_size)
+unsigned char* robo::navmesh::build_tile_mesh(const int tx, const int ty, const float* bmin, const float* bmax, int& data_size)
 {
-	if (!geometry || !geometry->getMesh() || !geometry->getChunkyMesh())
+	if (!geometry || !geometry->has_geometry())
 	{
 		context->log(RC_LOG_ERROR, "navmesh::build_tile_mesh: Input navmesh is not specified.");
 		return nullptr;
@@ -315,16 +321,10 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 
 	cleanup();
 
-	const float* verts = geometry->getMesh()->getVerts();
-	const int nverts = geometry->getMesh()->getVertCount();
-	const int ntris = geometry->getMesh()->getTriCount();
-	const rcChunkyTriMesh* chunky_mesh = geometry->getChunkyMesh();
-
-
-	// TODO: Adjust these as needed. Also, most of these should be set in the constructor, probably.
-	config.tileSize = tile_size;
-	config.width = config.tileSize + config.borderSize * 2;
-	config.height = config.tileSize + config.borderSize * 2;
+	const float* verts = geometry->vertices.data();
+	const int nverts = geometry->vertices.size() / 3;
+	const int ntris = geometry->triangles.size() / 3;
+	const rcChunkyTriMesh* chunky_mesh = geometry->chunky_tri_mesh;
 
 	rcVcopy(config.bmin, bmin);
 	rcVcopy(config.bmax, bmax);
@@ -379,7 +379,9 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 			verts, nverts, ctris, nctris, tri_areas);
 
 		if (!rcRasterizeTriangles(context, verts, nverts, ctris, tri_areas, nctris, *height_field, config.walkableClimb))
+		{
 			return nullptr;
+		}
 	}
 
 	delete[] tri_areas;
@@ -467,6 +469,7 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 		return nullptr;
 	}
 
+	// This is a very common early return point
 	if (contour_set->nconts == 0)
 	{
 		return nullptr;
@@ -505,7 +508,6 @@ unsigned char* navmesh::build_tile_mesh(const int tx, const int ty, const float*
 	compact_height_field = nullptr;
 	rcFreeContourSet(contour_set);
 	contour_set = nullptr;
-
 
 	unsigned char* nav_data = nullptr;
 	int nav_data_size = 0;

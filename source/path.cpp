@@ -2,7 +2,7 @@
 
 #include "path.h"
 
-path::path() 
+robo::path::path() 
 {
 	filter.setIncludeFlags(0xffff);
 	filter.setExcludeFlags(0);
@@ -13,10 +13,10 @@ path::path()
 	half_extents[2] = 1.0f;
 }
 
-path::~path() 
+robo::path::~path()
 {}
 
-void path::init(class navmesh* mesh) 
+void robo::path::init(class navmesh* mesh)
 {
 	navmesh = mesh;
 	query = navmesh->get_nav_query();
@@ -24,7 +24,7 @@ void path::init(class navmesh* mesh)
 	recalculate();
 }
 
-void path::recalculate()
+void robo::path::recalculate()
 { 
 	if (!navmesh) return;
 
@@ -74,21 +74,21 @@ void path::recalculate()
 	}
 }
 
-void path::set_start(const float* position) 
+void robo::path::set_start(const float* position)
 {
 	rcVcopy(start_pos, position);
 	is_start_pos_set = true;
 	recalculate();
 }
 
-void path::set_end(const float* position) 
+void robo::path::set_end(const float* position)
 {
 	rcVcopy(end_pos, position);
 	is_end_pos_set = true;
 	recalculate();
 }
 
-const float* path::get_next_waypoint() 
+const float* robo::path::get_next_waypoint()
 {
 	// We've finished traversing the path
 	if (current_waypoint_id > path_waypoints_count - 1) 
@@ -103,7 +103,7 @@ const float* path::get_next_waypoint()
 	return goal;
 }
 
-void path::increment_waypoint()
+void robo::path::increment_waypoint()
 {
 	if (current_waypoint_id > path_waypoints_count - 1) 
 	{
@@ -113,7 +113,7 @@ void path::increment_waypoint()
 	current_waypoint_id++;
 }
 
-void path::reset()
+void robo::path::reset()
 {
 	start_poly_ref = 0;
 	end_poly_ref = 0;
@@ -125,7 +125,7 @@ void path::reset()
 	is_end_pos_set = false;
 }
 
-const float* path::get_waypoint_from_id(int id) 
+const float* robo::path::get_waypoint_from_id(int id)
 {
 	if (id > path_waypoints_count - 1) 
 	{
