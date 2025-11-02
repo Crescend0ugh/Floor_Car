@@ -148,10 +148,10 @@ namespace network
 	{
 	private:
 		tcp::resolver resolver;
-		std::string ip;
 		std::string port;
 
-		void connect_loop();
+		void resolve_loop(std::string& ip_address, const std::string& port);
+		void connect_loop(const tcp::resolver::results_type& endpoints);
 		void write_loop() override;
 		void read_loop() override;
 
@@ -160,8 +160,11 @@ namespace network
 	public:
 		asio::steady_timer retry_timer;
 		bool is_connected = false;
+		std::string ip;
 
-		client(asio::io_context& io_context, std::string& ip_address, short port);
+		client(asio::io_context& io_context, const std::string& ip_address, const std::string& port);
+
+		void set_ip_address(const std::string& new_ip);
 
 		void disconnect();
 

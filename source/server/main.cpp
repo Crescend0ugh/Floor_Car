@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
             };
 
             float delta_yaw = vision.compute_delta_yaw_to_detection_center(detection);
-            // std::cout << delta_yaw << std::endl;
+            std::cout << delta_yaw << std::endl;
         }
 
         handle_client_messages();

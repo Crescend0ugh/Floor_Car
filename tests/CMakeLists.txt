@@ -6,6 +6,7 @@ set(TEST_SUBDIRECTORIES
 	networking_test
 	opencv_test
 	bounding_boxes_test
+	mesh_reconstruction_test
 )
 
 if(WIN32)

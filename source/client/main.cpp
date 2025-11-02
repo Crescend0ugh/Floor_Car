@@ -9,6 +9,7 @@
 #include "network.h"
 #include "network_data.h"
 #include "client/camera_feed.h"
+#include "client/connection_screen.h"
 
 #include <raylib.h>
 
@@ -16,13 +17,18 @@
 #include <algorithm>
 #include <sstream>
 
+using namespace std::chrono_literals;
+
 // If the Pi is connected to "nyu" WiFi, the IP is something that starts with "10.20"
 // Run "hostname -I" in a Pi terminal and use the IP address it gives you
-std::string ip = "127.0.0.1"; // "127.0.0.1"
-short port = 12345;
+
+const std::string port = "12345";
 
 asio::io_context io_context;
-network::client client(io_context, ip, port);
+network::client client(io_context, "127.0.0.1", port);
+
+ui::camera_feed_visualizer camera_feed_visualizer(1);
+ui::connection_screen connection_screen;
 
 int main()
 {
@@ -38,8 +44,6 @@ int main()
 
     network::received_data server_data;
 
-    ui::camera_feed_visualizer camera_feed_visualizer(1);
-   
     while (!WindowShouldClose())
     {
         robo::network::rc_command command = robo::network::rc_command::none;
@@ -89,24 +93,40 @@ int main()
 
         if (!client.is_connected)
         {
-            DrawText(TextFormat("CONNECTING TO %s:%d ...", ip.c_str(), port), 50, 50, 50, RED);
+            auto ip_address_to_connect = connection_screen.get_submitted_input();
+            if (ip_address_to_connect.has_value())
+            {
+                client.set_ip_address(ip_address_to_connect.value());
+            }
+
+            DrawText(TextFormat("Connecting to %s ...", client.ip.c_str()), 50, 50, 50, MAROON);
 
             // This can be negative because resolving the endpoints blocks
             auto time_till_retry = std::chrono::duration_cast<std::chrono::seconds>(client.retry_timer.expiry() - std::chrono::steady_clock::now());
 
-            DrawText(
-                TextFormat("Retrying connection in %s", 
-                    std::format("{}", std::max(time_till_retry, std::chrono::seconds(0))).c_str()
-                ),
-                50, 120, 50, GREEN
-            );
+            if (time_till_retry >= 0s)
+            {
+                DrawText(
+                    TextFormat("Retrying connection in %s",
+                        std::format("{}", std::max(time_till_retry, std::chrono::seconds(0))).c_str()
+                    ),
+                    50, 120, 50, GREEN
+                );
+            }
+            else
+            {
+                DrawText("...", 50, 120, 50, GREEN);
+            }
+            
 
+            connection_screen.draw();
             camera_feed_visualizer.clear();
         }
         else
         {
             camera_feed_visualizer.create_feed(0, GetScreenWidth() / 2, 0, GetScreenWidth() / 2, GetScreenHeight() / 2);
             camera_feed_visualizer.draw();
+            connection_screen.reset();
         }
 
         EndDrawing();
@@ -114,6 +134,9 @@ int main()
 
     CloseWindow();
 
+    io_context.stop();
     thread.join();
     client.disconnect();
+
+    return 0;
 }

@@ -64,9 +64,12 @@ void connection::read_loop()
 }
 
 server::server(asio::io_context& io_context, short port) :
-    acceptor(io_context, tcp::endpoint(tcp::v4(), port))
+    acceptor(io_context)
 {
+    auto endpoint = tcp::endpoint(tcp::v4(), port);
+    acceptor.open(endpoint.protocol());
     acceptor.set_option(tcp::acceptor::reuse_address());
+    acceptor.bind(endpoint);
     acceptor.listen();
     accept();
 }
@@ -158,24 +161,65 @@ bool server::poll(received_data& data)
     return false;
 }
 
-client::client(asio::io_context& io_context, std::string& ip_address, short port) : 
+client::client(asio::io_context& io_context, const std::string& ip_address, const std::string& port) : 
     io::io((tcp::socket)io_context), 
     resolver(io_context),
     retry_timer(io_context, std::chrono::seconds(3)),
     ip(ip_address),
-    port(std::to_string(port))
+    port(port)
 {
-    connect_loop();
+    resolve_loop(ip, port);
 }
 
-void client::connect_loop()
+void client::set_ip_address(const std::string& new_ip)
 {
-    tcp::resolver::results_type endpoints = resolver.resolve(ip, port);
+    if (new_ip == ip)
+    {
+        return;
+    }
 
+    retry_timer.cancel();
+    resolver.cancel(); // Stop current connect loop
+    socket.close();
+
+    ip = new_ip;
+    resolve_loop(ip, port);
+}
+
+void client::resolve_loop(std::string& ip_address, const std::string& port)
+{
+    is_connected = false;
+
+    resolver.async_resolve(ip_address, port,
+        [&, this](const asio::error_code& error, const tcp::resolver::results_type& endpoints)  
+        {
+            if (error && error != asio::error::operation_aborted)
+            {
+                std::cerr << "Error resolving IP address and port: " << error.message() << std::endl;
+                std::cerr << "Retrying in 3 seconds" << std::endl;
+
+                retry_timer.expires_at(std::chrono::steady_clock::now() + std::chrono::seconds(3));
+                retry_timer.async_wait(
+                    [&, this](const asio::error_code& error)
+                    {
+                        resolve_loop(ip_address, port);
+                    }
+                );
+            }
+            else if (!error)
+            {
+                connect_loop(endpoints);
+            }
+        }
+    );
+}
+
+void client::connect_loop(const tcp::resolver::results_type& endpoints)
+{
     asio::async_connect(socket, endpoints,
         [&, this](const asio::error_code& error, const asio::ip::tcp::endpoint& /*endpoint*/) 
         {
-            if (error)
+            if (error && error != asio::error::operation_aborted)
             {
                 is_connected = false;
 
@@ -188,10 +232,11 @@ void client::connect_loop()
                 retry_timer.async_wait(
                     [&, this](const asio::error_code& error)
                     {
-                        connect_loop();
-                    });
+                        resolve_loop(ip, port);
+                    }
+                );
             }
-            else
+            else if (!error)
             {
                 is_connected = true;
                 read_loop();
@@ -205,7 +250,7 @@ void client::read_loop()
     asio::async_read(socket, buffer, asio::transfer_exactly(sizeof(size_t)), 
         [this](asio::error_code error, size_t bytes_read) 
         {
-            if (!error)
+            if (!error && error != asio::error::operation_aborted)
             {
                 // Read payload size
                 size_t payload_size = 0;
@@ -236,8 +281,7 @@ void client::read_loop()
                     std::cout << "Read error: " << error.message() << std::endl;
                 }
 
-                connect_loop();
-                return;
+                resolve_loop(ip, port);
             }
         }
     );
