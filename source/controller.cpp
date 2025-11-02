@@ -54,7 +54,7 @@ void robo::controller::send_command_to_arduino(robo::command::command command_to
 	zpp::bits::out out(serialized);
 	// Amazing! It handles std::variant perfectly!
 	out(command_to_send).or_throw();
-
+	
 	arduino_serial.write(serialized);
 }
 

@@ -1,6 +1,7 @@
 #include "navgeometry.h"
 
 #include <iostream>
+#include <math.h>
 
 robo::navgeometry::navgeometry():
 	min_bounds{0.0f, 0.0f, 0.0f},

@@ -38,7 +38,8 @@ namespace robo
             w,
             s,
             a,
-            d
+            d,
+            pick_up
         };
     }
 }

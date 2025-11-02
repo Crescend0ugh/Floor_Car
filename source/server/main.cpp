@@ -32,6 +32,10 @@ robo::controller controller;
 // Objects we're looking for
 std::vector<std::string> valid_detection_class_names = {"apple", "orange", "sports ball"};
 
+// PLACEHOLDER FOR BENCHMARK
+float current_delta_yaw = 0.0f; // Degrees
+float delta_yaw_epsilon = 0.1f; // Degrees
+
 static bool is_valid_detection(int label)
 {
     return std::find(
@@ -115,9 +119,23 @@ int main(int argc, char* argv[])
             };
 
             float delta_yaw = vision.compute_delta_yaw_to_detection_center(detection);
-            std::cout << delta_yaw << std::endl;
 
-            controller.rotate_by(delta_yaw);
+#if 0
+            // Turn until we're facing the object
+            if (std::abs(delta_yaw) > delta_yaw_epsilon)
+            {
+                if (delta_yaw > 0.0f) // To the right
+                {
+                    controller.send_rc_command_to_arduino(robo::network::rc_command::d);
+                }
+                else if (delta_yaw < 0.0f) // Object is to the left
+                {
+                    controller.send_rc_command_to_arduino(robo::network::rc_command::a);
+                }
+            }
+            // Move forward?
+#endif
+            
             break;
         }
 

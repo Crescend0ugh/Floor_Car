@@ -52,6 +52,10 @@ int main()
         {
             command = robo::network::rc_command::stop;
         }
+        else if (IsKeyDown(KEY_P))
+        {
+            command = robo::network::rc_command::pick_up;
+        }
         else if (IsKeyDown(KEY_W))
         {
             command = robo::network::rc_command::w;
@@ -69,7 +73,7 @@ int main()
             command = robo::network::rc_command::d;
         }
         
-        if (command != robo::network::rc_command::none)
+        if (command != robo::network::rc_command::none && client.is_connected)
         {
             client.send(robo::network::protocol::rc, command);
         }

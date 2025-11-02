@@ -31,7 +31,8 @@ enum rc_command
     w,
     s,
     a,
-    d
+    d,
+    pick_up
 };
 
 // Sometimes, the serial has 3 bytes available when we expect 4, for whatever reason, so this is a failsafe
@@ -111,26 +112,39 @@ void handle_rc_command()
     {
     case (rc_command::stop):
     {
-
+        driver.stop();
         break;
     }
     case (rc_command::w):
     {
-        send_log("W");
+        driver.set_direction(left | right, forward);
+        driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::s):
     {
-        send_log("S");
+        driver.set_direction(left | right, backward);
+        driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::a):
     {
+        driver.set_left_direction(backward);
+        driver.set_right_direction(forward);
+        driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::d):
     {
-
+        driver.set_left_direction(forward);
+        driver.set_right_direction(backward);
+        driver.set_speed(left | right, 255);
+        break;
+    }
+    case (rc_command::pick_up):
+    {
+        driver.stop();
+        // TODO
         break;
     }
     default:
@@ -146,6 +160,7 @@ void setup()
     Wire.begin();
 
     driver = motor_driver(5, 7, 6, 3, 1, 2);
+    driver.stop();
 
     randomSeed(1001);
 
@@ -237,6 +252,11 @@ void loop()
         }
 
         clear_serial_buffer();
+    }
+    else
+    {
+        // No commands = stop moving
+        driver.stop();
     }
 
     delay(update_rate_ms);

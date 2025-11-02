@@ -77,6 +77,16 @@ struct motor_driver
             digitalWrite(in_4, HIGH);
         }
     };
+    void stop()
+    {
+        analogWrite(en_a, 0);
+        analogWrite(en_b, 0);
+
+        digitalWrite(in_1, LOW);
+        digitalWrite(in_2, LOW);
+        digitalWrite(in_3, LOW);
+        digitalWrite(in_4, LOW);
+    }
 
     int en_a;
     int in_1;
