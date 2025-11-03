@@ -1,3 +1,12 @@
+/*
+	navgeometry.h
+
+	Stores the mesh components in the format required by Recast Navigation to compute navigation meshes.
+
+	Load the vertices and triangle indices returned by mesh reconstruction into an instance of navgeometry
+	to build the navmesh.
+*/
+
 #pragma once
 
 #include "Recast.h"
@@ -19,7 +28,7 @@ namespace robo
 
 		float min_bounds[3];
 		float max_bounds[3];
-		rcChunkyTriMesh* chunky_tri_mesh = nullptr;
+		rcChunkyTriMesh* chunky_tri_mesh = nullptr; // TODO: If we switch to solo meshes, we can remove this
 
 		navgeometry();
 		~navgeometry();

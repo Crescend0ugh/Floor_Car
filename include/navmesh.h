@@ -1,3 +1,14 @@
+/*
+    navmesh.h
+
+    Interfaces Recast Navigation to construct a navigation mesh.
+    Defines agent parameters.
+
+    The class does not provide any tools or functionality for traversing the underlying navigation mesh. See path.h.
+
+    Use navgeometry to pass in the vertices, triangles, and normals of the world mesh.
+*/
+
 #pragma once
 
 #include "Recast.h"
@@ -5,14 +16,11 @@
 #include "DetourNavMeshQuery.h"
 #include "InputGeom.h"
 
-#include "navcontext.h"
 #include "navgeometry.h"
-
-
 
 namespace robo
 {
-    // Default values for all fields but edge_max_error were chosen arbitrarily and should definitely be set!
+    // Default values for all fields were chosen arbitrarily and should definitely be set!
     struct navigation_params
     {
         // If the agent were a circle, this would be its radius, in meters
@@ -33,7 +41,7 @@ namespace robo
         // y height of each cell, in meters (NEEDS TUNING)
         float cell_height = 10.0f;
 
-        // Size of the tiles in voxels
+        // Size of the tiles in voxels (one tile will cover tile_size squared voxels)
         float tile_size = 20.0f;
         
         // Edge max error in voxels
@@ -54,7 +62,7 @@ namespace robo
     class navmesh
     {
         rcConfig config;
-        navcontext* context = nullptr;
+        rcContext* context = nullptr;
 
         rcHeightfield* height_field = nullptr;
         rcCompactHeightfield* compact_height_field = nullptr;
@@ -93,7 +101,7 @@ namespace robo
         void on_mesh_changed(navgeometry* new_geometry);
         void get_tile_pos(const float* position, int& tx, int& ty);
 
-        navcontext* get_context() { return context; };
+        rcContext* get_context() { return context; };
         dtNavMesh* get_navmesh_internal() { return navmesh_internal; };
         dtNavMeshQuery* get_nav_query() { return nav_query; };
     };

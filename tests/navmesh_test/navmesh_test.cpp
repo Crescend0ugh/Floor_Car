@@ -186,13 +186,12 @@ int main()
 	params.max_slope = 20.0f;
 
 	navmesh* nmesh = new navmesh(params);
-	navcontext* context = nmesh->get_context();
+	rcContext* context = nmesh->get_context();
 	InputGeom* geometry = new InputGeom();
 
 	const char* path_to_mesh = "content/meshes/dungeon.obj";
 
 	geometry->load(context, path_to_mesh);
-	context->dump_log("Geometry log:");
 
 	std::vector<float> verts;
 	std::vector<int> tris;
@@ -218,8 +217,6 @@ int main()
 
 	nmesh->on_mesh_changed(&navgeo);
 	nmesh->build();
-
-	context->dump_log("Build log: ");
 
 	////////////////////////////////////////
 

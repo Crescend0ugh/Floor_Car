@@ -1,3 +1,16 @@
+/*
+	arduino_serial.h
+
+	Establishes and enables two-way communication with an Arduino Uno through a serial port.
+
+	Host-tp-Arduino messages:
+		- RC car commands
+
+	Arduino-to-host messages:
+		- IMU odometry data (subject to change)
+		- Microphone inputs
+*/
+
 #pragma once
 
 #include "zpp_bits.h"

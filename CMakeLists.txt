@@ -1,21 +1,7 @@
-file(GLOB_RECURSE SOURCES
-    source/*.cpp
-)
-list(FILTER SOURCES EXCLUDE REGEX "main.cpp")
-
 cmake_minimum_required(VERSION 3.28)
 project(Floor_Car)
 
 set(CMAKE_CXX_STANDARD 20)
-
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "armv7" OR CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64") 
-        add_compile_definitions(RPI_UBUNTU)
-        message(STATUS "Compiling for Raspberry Pi Ubuntu.")
-    endif()
-else()
-        message(STATUS "Compiling for non-Linux")
-endif()
 
 if(WIN32)
     set(OpenCV_DIR "C:/opencv/build")
@@ -37,6 +23,17 @@ if(NOT TARGET JsonCpp::JsonCpp)
             INTERFACE_INCLUDE_DIRECTORIES "${JSONCPP_INCLUDE_DIR}")
 endif()
 
+# Copy the "content" directory into binaries' output folder so files can access using "../content/"
+# This is required for some of the tests, so it should come before the tests add_subdirectory call
+macro(ADD_CONTENT_POST_BUILD target_name)
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/content/"
+            "$<TARGET_FILE_DIR:${target_name}>/content"
+        COMMENT "Copying content directory to ${target_name} output directory"
+    )
+endmacro()
+
 add_subdirectory(third_party)
 
 if(WIN32)
@@ -44,28 +41,99 @@ if(WIN32)
     add_subdirectory(tests)
 endif()
 
-add_executable(FloorCar ${SOURCES} source/server/main.cpp)
-add_custom_command(TARGET FloorCar POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    ${CMAKE_SOURCE_DIR}/content/ $<TARGET_FILE_DIR:FloorCar>/content)
-                    
-target_include_directories(FloorCar PRIVATE include/ third_party/asio/include third_party/zpp_bits)
-target_compile_definitions(FloorCar PRIVATE ASIO_STANDALONE _WIN32_WINNT=0x601)
-target_link_libraries(FloorCar Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn ${PCL_LIBRARIES} serialib)
+########################################################################
+# Server static library and executable target
+########################################################################
 
-#####################
+set(SERVER_SOURCES
+    source/arduino_serial.cpp
+    source/controller.cpp
+    source/mapgen.cpp
+    source/navgeometry.cpp
+    source/navmesh.cpp
+    source/network.cpp
+    source/path.cpp
+    source/vision.cpp
+    source/yolo_model.cpp
+)
+
+add_library(FloorCar_lib STATIC ${SERVER_SOURCES})
+
+target_include_directories(FloorCar_lib
+    PUBLIC
+        include/
+        third_party/asio/include
+        third_party/zpp_bits
+)
+
+target_compile_definitions(FloorCar_lib
+    PUBLIC
+        ASIO_STANDALONE
+)
+
+target_link_libraries(FloorCar_lib
+    PUBLIC
+        Recast
+        Detour
+        DetourCrowd
+        DetourTileCache
+        DebugUtils
+        RecastDemo
+        raylib_static
+        ${OpenCV_LIBS}
+        ncnn
+        ${PCL_LIBRARIES}
+        serialib
+)
+
+add_executable(FloorCar ${SERVER_SOURCES} source/server/main.cpp)
+ADD_CONTENT_POST_BUILD(FloorCar)
+target_compile_definitions(FloorCar PRIVATE _WIN32_WINNT=0x601)
+target_link_libraries(FloorCar PRIVATE FloorCar_lib)
+
+########################################################################
+# Client static library and executable target
+########################################################################
 
 if(WIN32)
     message(STATUS "Building client app.")
-    add_executable(FloorCarClient ${SOURCES} source/client/main.cpp)
-    add_custom_command(TARGET FloorCarClient POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_directory
-                        ${CMAKE_SOURCE_DIR}/content/ $<TARGET_FILE_DIR:FloorCarClient>/content)
+    set(CLIENT_SOURCES
+        source/network.cpp
+        source/client/camera_feed.cpp
+        source/client/connection_screen.cpp
+    )
 
-    target_include_directories(FloorCarClient PRIVATE include/ third_party/asio/include third_party/zpp_bits)
-    target_compile_definitions(FloorCarClient PRIVATE ASIO_STANDALONE)
-    target_link_libraries(FloorCarClient Recast Detour DetourCrowd DetourTileCache DebugUtils RecastDemo raylib_static ${OpenCV_LIBS} ncnn ${PCL_LIBRARIES} serialib)
+    add_library(FloorCarClient_lib STATIC ${CLIENT_SOURCES})
+
+    # Client static library
+    target_include_directories(FloorCarClient_lib
+        PUBLIC
+            include/
+            third_party/asio/include
+            third_party/zpp_bits
+    )
+
+    target_compile_definitions(FloorCarClient_lib
+        PUBLIC
+            ASIO_STANDALONE
+    )
+
+    target_link_libraries(FloorCarClient_lib
+        PUBLIC
+            raylib_static
+            ${OpenCV_LIBS}
+    )
+
+    add_executable(FloorCarClient ${CLIENT_SOURCES} source/client/main.cpp)
+    target_compile_definitions(FloorCarClient PRIVATE _WIN32_WINNT=0x601)
+    target_link_libraries(FloorCarClient FloorCarClient_lib)
 endif()
 
+########################################################################
+# Camera calibration executable
+########################################################################
+
 add_executable(Calibration source/calibration/main.cpp)
-target_link_libraries(Calibration ${OpenCV_LIBS})
+target_link_libraries(Calibration PRIVATE ${OpenCV_LIBS})
+
+message(STATUS "Finished building project.")

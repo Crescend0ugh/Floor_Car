@@ -1,3 +1,11 @@
+/*
+	path.h
+
+	Generates a path (array of points) through a navmesh, given start and end positions.
+
+	The path is automatically recalculated and updated when the start and end positions change.
+*/
+
 #pragma once
 
 #include <DetourNavMeshQuery.h>

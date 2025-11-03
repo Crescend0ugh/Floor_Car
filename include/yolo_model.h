@@ -1,3 +1,12 @@
+/*
+	yolo_model.h
+
+	Implements the YOLOv11 object inference model loaded into ncnn for higher performance.
+
+	Detections are given as a 2D bounding box, an integer label corresponding to a string class name (use get_detection_class_name),
+	and a confidence percentage.
+*/
+
 #pragma once
 
 #include "layer.h"

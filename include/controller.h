@@ -1,3 +1,14 @@
+/*
+	controller.h
+
+	Defines commands to be sent to the Arduino for robot movement.
+
+	Opens and manages the Arduino serial (TODO: Would be better to detach the two)
+
+	Records and updates IMU odometry data. The class is the source of truth for the position and rotation matrix of the car
+	with respect to world coordinates.
+*/
+
 #pragma once
 
 #include "vector.h"

@@ -1,3 +1,14 @@
+/*
+	vision.h
+
+	Opens and captures images from the robot's camera.
+	Runs the YOLOv11 and ncnn object inference model on camera captures.
+	Stores the camera's intrinsic matrix and LiDAR sensor's extrinsic matrix with respect to the camera.
+	Provides tools for identifying which LiDAR point cloud points fall within a 2D bounding box object detection.
+
+	Object detection is run asynchronously due to long processing times.
+*/
+
 #pragma once
 
 #include "yolo_model.h"
@@ -34,11 +45,11 @@ namespace robo
 		cv::Mat camera_matrix; // Camera's intrinsic matrix
 		cv::Mat dist_coeffs; // Camera's distortion coefficients
 		cv::Mat lidar_to_camera_transform; // Obtained from calibration (4x4)
-		cv::Mat camera_to_lidar_transform;
+		cv::Mat camera_to_lidar_transform; // Inverse of lidar_to_camera_transform
 
 		cv::VideoCapture capture;
 		cv::Mat camera_frame; // Raw camera frame
-		cv::Mat undistorted_camera_frame;
+		cv::Mat undistorted_camera_frame; // Camera frame after undistorting based on intrinsics and distortion coefficients
 
 		cv::Size image_size = cv::Size{ 640, 480 };
 
@@ -53,7 +64,7 @@ namespace robo
 		bool is_client_connected = false;
 		bool is_enabled = true;
 
-		std::vector<yolo::detection> detections;
+		std::vector<yolo::detection> detections; // Can be accessed at anytime, anywhere. Contains 2D detection data.
 
 		vision();
 		bool initialize_camera();

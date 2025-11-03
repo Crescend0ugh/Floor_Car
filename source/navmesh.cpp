@@ -33,7 +33,7 @@ static inline unsigned int ilog2(unsigned int v)
 
 robo::navmesh::navmesh(const navigation_params& params)
 {
-	context = new navcontext();
+	context = new rcContext();
 	nav_query = dtAllocNavMeshQuery();
 
 	config.cs = params.cell_size;
