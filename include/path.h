@@ -32,8 +32,6 @@ namespace robo
 		dtPolyRef polys[MAX_POLYS] = { 0 }; // Array of polygons in path
 		int polys_count = 0; // Number of polygons in path
 
-		float start_pos[3] = { 0.0f };
-		float end_pos[3] = { 0.0f };
 		float half_extents[3] = { 0.0f };
 
 		float path_waypoints[MAX_POLYS * 3] = { 0 }; // Vector coordinates of the straight path points
@@ -50,6 +48,9 @@ namespace robo
 		void recalculate();
 
 	public:
+		float start_pos[3] = { 0.0f };
+		float end_pos[3] = { 0.0f };
+
 		path();
 		~path();
 
@@ -62,9 +63,9 @@ namespace robo
 		void set_start(const float* position);
 		void set_end(const float* position);
 
-		int get_waypoint_count() { return path_waypoints_count; };
-		const float* get_next_waypoint(); // Can return a vector3
+		int get_waypoint_count() const { return path_waypoints_count; };
+		const float* get_next_waypoint() const; // Can return a vector3
 		void increment_waypoint();
-		const float* get_waypoint_from_id(int id);
+		const float* get_waypoint_from_id(int id) const;
 	};
 }

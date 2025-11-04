@@ -60,8 +60,8 @@ robo::navmesh::navmesh(const navigation_params& params)
 	config.maxVertsPerPoly = 6.0f;
 
 	// To be tuned
-	config.detailSampleDist = params.detail_sample_dist < 0.9f ? 0 : config.cs * params.detail_sample_dist;
-	config.detailSampleMaxError = config.ch * params.detail_sample_max_error;
+	config.detailSampleDist = params.detail_sample_dist < 0.9f ? 0 : params.detail_sample_dist;
+	config.detailSampleMaxError = params.detail_sample_max_error;
 }
 
 robo::navmesh::~navmesh()

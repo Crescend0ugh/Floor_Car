@@ -184,6 +184,9 @@ int main()
 	params.agent_height = 1.0f;
 	params.agent_radius = 0.5f;
 	params.max_slope = 20.0f;
+	params.edge_max_len = params.agent_radius * 8;
+	params.detail_sample_dist = 6.0f;
+	params.detail_sample_max_error = 1.0f;
 
 	navmesh* nmesh = new navmesh(params);
 	rcContext* context = nmesh->get_context();
@@ -253,6 +256,7 @@ int main()
 	//actual_mesh.indices = (unsigned short*)geometry->getMesh()->getTris();
 	//actual_mesh.triangleCount = geometry->getMesh()->getTriCount();
 	//UploadMesh(&actual_mesh, false);
+
 	Model model = LoadModel(path_to_mesh);
 
 	while (!WindowShouldClose())

@@ -32,7 +32,7 @@ namespace robo
         // Maximum slope angle (0, 90 deg) we can move up
         float max_slope = 0.0f;
 
-        // Maximum height of obstacles we can step over (probably 0?)
+        // Maximum height of obstacles we can step over, in meters
         float max_climb = 0.0f;
 
         // x and z size of each cell, in meters (NEEDS TUNING)
@@ -44,18 +44,19 @@ namespace robo
         // Size of the tiles in voxels (one tile will cover tile_size squared voxels)
         float tile_size = 20.0f;
         
-        // Edge max error in voxels
+        // Edge max error in voxels (suggested by Recast Docs)
         float edge_max_error = 1.3f;
 
         // Edge max length in world units
         float edge_max_len = 0.5f;
 
+        // In voxels (suggested by Recast Docs)
         float border_offset = 3.0f;
 
-        // Detail sample distance in voxels
+        // Detail sample distance in meters
         float detail_sample_dist = 6.0f;
 
-        // Detail sample max error in voxel heights.
+        // Detail sample max error in meters (used for height mapping)
         float detail_sample_max_error = 1.0f;
     };
 

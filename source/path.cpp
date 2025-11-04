@@ -88,7 +88,7 @@ void robo::path::set_end(const float* position)
 	recalculate();
 }
 
-const float* robo::path::get_next_waypoint()
+const float* robo::path::get_next_waypoint() const
 {
 	// We've finished traversing the path
 	if (current_waypoint_id > path_waypoints_count - 1) 
@@ -125,7 +125,7 @@ void robo::path::reset()
 	is_end_pos_set = false;
 }
 
-const float* robo::path::get_waypoint_from_id(int id)
+const float* robo::path::get_waypoint_from_id(int id) const
 {
 	if (id > path_waypoints_count - 1) 
 	{
