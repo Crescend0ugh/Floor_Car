@@ -1,5 +1,7 @@
 #include "client/connection_screen.h"
 
+using namespace std::chrono_literals;
+
 const int input_max_chars = 15;
 std::regex ip_address_regex(
     "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}"
@@ -8,7 +10,8 @@ std::regex ip_address_regex(
 
 const int font_size = 40;
 
-ui::connection_screen::connection_screen():
+ui::connection_screen::connection_screen(network::client& client):
+    client(client),
     text_box(Rectangle())
 {
 }
@@ -20,6 +23,8 @@ bool ui::connection_screen::is_input_valid() const
 
 void ui::connection_screen::draw()
 {
+    // Update input
+
     input_entered = (IsKeyPressed(KEY_ENTER) && is_input_valid());
 	text_box = Rectangle { GetScreenWidth() / 2.0f - 250, GetScreenHeight() / 2.0f, 500, 75 };
 
@@ -57,8 +62,27 @@ void ui::connection_screen::draw()
         }
     }
     
-    // Draw the boxes
+    DrawText(TextFormat("Connecting to %s ...", client.ip.c_str()), 50, 50, 50, MAROON);
 
+    // This can be negative because resolving the endpoints blocks
+    auto time_till_retry = std::chrono::duration_cast<std::chrono::seconds>(client.retry_timer.expiry() - std::chrono::steady_clock::now());
+
+    // Draw retry timer
+    if (time_till_retry >= 0s)
+    {
+        DrawText(
+            TextFormat("Retrying connection in %s",
+                std::format("{}", std::max(time_till_retry, std::chrono::seconds(0))).c_str()
+            ),
+            50, 120, 50, GREEN
+        );
+    }
+    else
+    {
+        DrawText("...", 50, 120, 50, GREEN);
+    }
+
+    // Draw IP address input box
     DrawRectangleRec(text_box, LIGHTGRAY);
     if (is_mouse_on_text)
     {

@@ -110,12 +110,6 @@ void robo::controller::update()
 		next_command();
 	}
 
-	// If there's no command active, send remote controls
-	if (is_remote_controlled && !current_command.has_value())
-	{
-
-	}
-
 	if (!current_command.has_value())
 	{
 		return;

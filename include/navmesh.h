@@ -63,17 +63,15 @@ namespace robo
     class navmesh
     {
         rcConfig config;
-        rcContext* context = nullptr;
 
+        // Intermediate objects for Recast
         rcHeightfield* height_field = nullptr;
         rcCompactHeightfield* compact_height_field = nullptr;
         rcContourSet* contour_set = nullptr;
         rcPolyMesh* poly_mesh = nullptr;
         rcPolyMeshDetail* poly_mesh_detail = nullptr;
-        dtNavMesh* navmesh_internal = nullptr;
-        dtNavMeshQuery* nav_query = nullptr;
 
-        navgeometry* geometry = nullptr;
+        navgeometry geometry;
 
         unsigned char* tri_areas = nullptr;
 
@@ -95,15 +93,15 @@ namespace robo
         unsigned char* build_tile_mesh(const int tx, const int ty, const float* bmin, const float* bmax, int& data_size);
 
     public:
+        rcContext* context = nullptr;
+        dtNavMeshQuery* nav_query = nullptr;
+        dtNavMesh* navmesh_internal = nullptr;
+
         navmesh(const navigation_params& params);
         ~navmesh();
 
         bool build();
-        void on_mesh_changed(navgeometry* new_geometry);
+        void set_geometry(navgeometry& new_geometry);
         void get_tile_pos(const float* position, int& tx, int& ty);
-
-        rcContext* get_context() { return context; };
-        dtNavMesh* get_navmesh_internal() { return navmesh_internal; };
-        dtNavMeshQuery* get_nav_query() { return nav_query; };
     };
 }

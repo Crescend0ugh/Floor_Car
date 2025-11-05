@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "zpp_bits.h"
+
 #include <iostream>
 #include <sstream>
 #include <format>
@@ -13,6 +15,8 @@ namespace robo
 {
     template<typename T>
     struct vector3 {
+        // Enable sending vectors straight through the network
+        using serialize = zpp::bits::members<3>;
 
         constexpr vector3(T x, T y, T z) : x(x), y(y), z(z)
         {}

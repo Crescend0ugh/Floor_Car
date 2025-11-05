@@ -101,6 +101,7 @@ if(WIN32)
         source/network.cpp
         source/client/camera_feed.cpp
         source/client/connection_screen.cpp
+        source/client/point_cloud_visualizer.cpp
     )
 
     add_library(FloorCarClient_lib STATIC ${CLIENT_SOURCES})

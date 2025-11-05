@@ -123,6 +123,12 @@ void server::accept()
             }
             else 
             {
+                // Clean cancellation. Do nothing.
+                if (error == asio::error::operation_aborted)
+                {
+                    return;
+                }
+
                 std::cout << "Network error: " << error.message() << std::endl;
             }
         }
@@ -159,6 +165,19 @@ bool server::poll(received_data& data)
     }
 
     return false;
+}
+
+void server::shutdown()
+{
+    acceptor.cancel();
+    acceptor.close();
+
+    for_each_active(
+        [](auto& c)
+        {
+            c.close();
+        }
+    );
 }
 
 client::client(asio::io_context& io_context, const std::string& ip_address, const std::string& port) : 

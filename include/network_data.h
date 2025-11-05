@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "vector.h"
+
 #include <opencv2/opencv.hpp>
 
 #include <string>
@@ -18,6 +20,7 @@ namespace robo
             placeholder = 0,
             camera_feed,
             rc,
+            point_cloud,
         };
 
         // Server to client
@@ -40,6 +43,13 @@ namespace robo
             a,
             d,
             pick_up
+        };
+
+        struct point_cloud_mesh_update
+        {
+            std::vector<vector3f> points;
+            std::vector<uint32_t> triangles;
+            bool is_delta_points; // If true, append the points received onto the end of the client's point cloud
         };
     }
 }

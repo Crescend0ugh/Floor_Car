@@ -33,7 +33,6 @@ robo::navigation_params agent = {
 
 	.tile_size = 50.0f,
 
-	.edge_max_len = 0.5f * 8,
 	.border_offset = 1,
 	.detail_sample_dist = 6.0f,
 	.detail_sample_max_error = 1.0f,
@@ -41,20 +40,25 @@ robo::navigation_params agent = {
 
 void draw_path_points(robo::path& path)
 {
-	const int path_waypoint_count = path.get_waypoint_count();
+	Vector3 start{ path.start.x, path.start.y, path.start.z };
+	Vector3 end{ path.end.x, path.end.y, path.end.z };
+	DrawSphere(start, 0.5f, RED);
+	DrawSphere(end, 0.75f, GREEN);
 
-	DrawSphere(Vector3{ path.start_pos[0], path.start_pos[1], path.start_pos[2] }, 0.5f, RED);
-	DrawSphere(Vector3{ path.end_pos[0], path.end_pos[1], path.end_pos[2] }, 0.75f, GREEN);
-
-	Vector3 previous_position_vector = Vector3{ path.start_pos[0], path.start_pos[1], path.start_pos[2] };
-	for (int i = 1; i < path_waypoint_count - 1; ++i)
+	Vector3 previous_position_vector = start;
+	for (int i = 1; i < path.waypoints.size() - 1; ++i)
 	{
-		const float* next_position = path.get_waypoint_from_id(i);
-		Vector3 next_position_vector = { next_position[0], next_position[1], next_position[2] };
+		const robo::vector3f& next_position = path.waypoints[i];
+		Vector3 next_position_vector = { next_position.x, next_position.y, next_position.z };
 
 		DrawSphere(next_position_vector, 0.3f, BLUE);
 		DrawLine3D(previous_position_vector, next_position_vector, BLUE);
 		previous_position_vector = next_position_vector;
+	}
+
+	if (path.waypoints.size() > 0)
+	{
+		DrawLine3D(previous_position_vector, end, BLUE);
 	}
 }
 
@@ -245,21 +249,23 @@ int main()
 	std::cout << geometry.min_bounds[0] << ", " << geometry.min_bounds[1] << ", " << geometry.min_bounds[2] << std::endl;
 	std::cout << geometry.max_bounds[0] << ", " << geometry.max_bounds[1] << ", " << geometry.max_bounds[2] << std::endl;
 
+	geometry.set_navmesh_min_bounds(robo::vector3f(-30.0f, -5.0f, -30.0f));
+	geometry.set_navmesh_max_bounds(robo::vector3f(50.0f, 20.0f, 50.0f));
+
+	BoundingBox navmesh_bbox = { 0 };
+	navmesh_bbox.min = Vector3(geometry.get_min_bounds()[0], geometry.get_min_bounds()[1], geometry.get_min_bounds()[2]);
+	navmesh_bbox.max = Vector3(geometry.get_max_bounds()[0], geometry.get_max_bounds()[1], geometry.get_max_bounds()[2]);
+
 	robo::navmesh navmesh(agent);
-	navmesh.on_mesh_changed(&geometry);
+	navmesh.set_geometry(geometry);
 	navmesh.build();
 
 	robo::path path;
 	path.init(&navmesh);
+	path.set_start(robo::vector3f { -8.3472f, -2.7779f, 12.257f });
+	path.set_end(robo::vector3f { -4.5572f, -1.0036f, -14.273f });
 
-	float start[3] = { -8.3472f, -2.7779f, 12.257f };
-	path.set_start(start);
-
-	float end[3] = { -4.5572f, -1.0036f, -14.273f };
-	path.set_end(end);
-
-	const int path_waypoint_count = path.get_waypoint_count();
-	std::cout << "Path waypoint count: " << path_waypoint_count << std::endl;
+	std::cout << "Path waypoint count: " << path.waypoints.size() << std::endl;
 
 	/////////////////////////////////////////////////
 
@@ -272,7 +278,7 @@ int main()
 	Model reconstructed_mesh_model = create_reconstructed_mesh(geometry);
 
 	std::vector<Model> navmesh_models;
-	const dtNavMesh* nmesh = navmesh.get_navmesh_internal();
+	const dtNavMesh* nmesh = navmesh.navmesh_internal;
 	for (int i = 0; i < nmesh->getMaxTiles(); ++i)
 	{
 		const dtMeshTile* tile = nmesh->getTile(i);
@@ -309,6 +315,8 @@ int main()
 		ClearBackground(BLACK);
 
 		BeginMode3D(camera);
+
+		DrawBoundingBox(navmesh_bbox, RED);
 
 		DrawModelWires(
 			reconstructed_mesh_model,

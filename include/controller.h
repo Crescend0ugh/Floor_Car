@@ -67,10 +67,7 @@ namespace robo
 		};
 
 	private:
-		std::optional<command::command> current_command = std::nullopt;
 		command_context current_command_context;
-
-		std::queue<command::command> command_queue;
 
 		void send_command_to_arduino(command::command command_to_send);
 
@@ -79,11 +76,14 @@ namespace robo
 	public:
 		class arduino_serial arduino_serial;
 
+		std::queue<command::command> command_queue;
+		std::optional<command::command> current_command = std::nullopt;
+
 		bool is_remote_controlled;
 
 		Eigen::Vector3f position; // The car center position
 		Eigen::Vector3f imu_position; // Position according to the IMU
-		Eigen::Matrix3f imu_rotation = Eigen::Matrix3f::Identity();
+		Eigen::Matrix3f imu_rotation = Eigen::Matrix3f::Identity(); // Rotation matrix with respect to the world origin
 
 		// The yaw: -179 to 180 degrees
 		float heading;
@@ -93,16 +93,6 @@ namespace robo
 		void clear_command_queue();
 		void update();
 		void send_rc_command_to_arduino(robo::network::rc_command command);
-
-		auto get_command_queue()
-		{
-			return command_queue;
-		}
-
-		auto get_current_command()
-		{
-			return current_command;
-		}
 
 		void normalize_heading()
 		{

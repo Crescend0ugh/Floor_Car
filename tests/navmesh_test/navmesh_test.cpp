@@ -10,13 +10,12 @@ using namespace robo;
 
 void draw_path_points(path* path)
 {
-	const int path_waypoint_count = path->get_waypoint_count();
 	Vector3 previous_position_vector = { 0.0f };
 
-	for (int i = 0; i < path_waypoint_count; ++i) 
+	for (int i = 0; i < path->waypoints.size(); ++i) 
 	{
-		const float* next_position = path->get_waypoint_from_id(i);
-		Vector3 next_position_vector = { next_position[0], next_position[1], next_position[2] };
+		const vector3f& next_position = path->waypoints[i];
+		Vector3 next_position_vector = { next_position.x, next_position.y, next_position.z };
 
 		// The start position is red, and the end is blue
 		if (i == 0) 
@@ -24,7 +23,7 @@ void draw_path_points(path* path)
 			previous_position_vector = next_position_vector;
 			DrawSphere(next_position_vector, 0.5f, RED);
 		}
-		else if (i == path_waypoint_count - 1) 
+		else if (i == path->waypoints.size() - 1)
 		{
 			DrawSphere(next_position_vector, 0.75f, GREEN);
 			DrawLine3D(previous_position_vector, next_position_vector, BLUE);
@@ -184,12 +183,11 @@ int main()
 	params.agent_height = 1.0f;
 	params.agent_radius = 0.5f;
 	params.max_slope = 20.0f;
-	params.edge_max_len = params.agent_radius * 8;
 	params.detail_sample_dist = 6.0f;
 	params.detail_sample_max_error = 1.0f;
 
 	navmesh* nmesh = new navmesh(params);
-	rcContext* context = nmesh->get_context();
+	rcContext* context = nmesh->context;
 	InputGeom* geometry = new InputGeom();
 
 	const char* path_to_mesh = "content/meshes/dungeon.obj";
@@ -218,19 +216,15 @@ int main()
 	navgeometry navgeo;
 	navgeo.load(verts, tris);
 
-	nmesh->on_mesh_changed(&navgeo);
+	nmesh->set_geometry(navgeo);
 	nmesh->build();
 
 	////////////////////////////////////////
 
 	path* p = new path();
 	p->init(nmesh);
-
-	float start[3] = { 20.230976f, 9.998184f, 1.481956f };
-	p->set_start(start);
-
-	float end[3] = { -1.292282f, 9.998180f, -5.186989f };
-	p->set_end(end);
+	p->set_start(vector3f { 20.230976f, 9.998184f, 1.481956f });
+	p->set_end(vector3f { -1.292282f, 9.998180f, -5.186989f });
 
 	///////////////////////////////////////
 
@@ -246,7 +240,7 @@ int main()
 	camera.fovy = 90.0f;                                // Camera field-of-view Y
 	camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
-	const dtNavMesh* navmesh_internal = nmesh->get_navmesh_internal();
+	const dtNavMesh* navmesh_internal = nmesh->navmesh_internal;
 	navmesh_visualizer* visualizer = new navmesh_visualizer(navmesh_internal);
 
 	//Mesh actual_mesh = { 0 }; This doesn't work???

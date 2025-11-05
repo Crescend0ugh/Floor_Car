@@ -43,8 +43,7 @@ namespace network
 	public:
 		io(tcp::socket socket):
 			socket(std::move(socket))
-		{
-		}
+		{}
 
 		bool enqueue(bytes data, bool at_front)
 		{
@@ -106,6 +105,13 @@ namespace network
 	public:
 		using io::io;
 		void start();
+
+		void close() 
+		{
+			asio::error_code ec;
+			socket.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+			socket.close(ec);
+		}
 	};
 
 	class server
@@ -132,6 +138,7 @@ namespace network
 		server(asio::io_context& io_context, short port);
 
 		bool poll(received_data& data);
+		void shutdown();
 
 		size_t get_client_count()
 		{

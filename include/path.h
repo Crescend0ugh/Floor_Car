@@ -8,16 +8,20 @@
 
 #pragma once
 
-#include <DetourNavMeshQuery.h>
-#include <DetourStatus.h>
-#include <DetourPathCorridor.h>
+#include "DetourNavMeshQuery.h"
+#include "DetourStatus.h"
+#include "DetourPathCorridor.h"
 
 #include "navmesh.h"
+#include "vector.h"
+
+#include <optional>
 
 namespace robo
 {
 	class path
 	{
+	private:
 		static const int MAX_POLYS = 256;
 
 		class navmesh* navmesh = nullptr;
@@ -39,20 +43,24 @@ namespace robo
 		dtPolyRef path_polys[MAX_POLYS] = { 0 }; // Polygon refs that are being entered at each straight path point
 		int path_waypoints_count = 0;
 
-		int current_waypoint_id = 0;
+		bool is_path_start_set = false;
+		bool is_path_end_set = false;
 
-		bool is_start_pos_set = false;
-		bool is_end_pos_set = false;
+		// Float arrays for Recast
+		float path_start[3] = { 0.0f };
+		float path_end[3] = { 0.0f };
 
-	private:
+		void populate_waypoints_vector();
 		void recalculate();
 
 	public:
-		float start_pos[3] = { 0.0f };
-		float end_pos[3] = { 0.0f };
+		// Outward-facing for: path_waypoints, path_start, and path_end
+		std::vector<vector3f> waypoints;
+		vector3f start;
+		vector3f end;
+		int current_waypoint_id = 0; // For external incrementing
 
 		path();
-		~path();
 
 		void init(class navmesh* navmesh);
 		void reset();
@@ -60,12 +68,10 @@ namespace robo
 		void set_half_extents(const float* extents) { rcVcopy(half_extents, extents); };
 
 		// These can be vector3's in the future
-		void set_start(const float* position);
-		void set_end(const float* position);
+		void set_start(const vector3f& position);
+		void set_end(const vector3f& position);
 
-		int get_waypoint_count() const { return path_waypoints_count; };
-		const float* get_next_waypoint() const; // Can return a vector3
+		std::optional<vector3f> get_next_waypoint() const;
 		void increment_waypoint();
-		const float* get_waypoint_from_id(int id) const;
 	};
 }

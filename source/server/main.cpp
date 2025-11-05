@@ -17,14 +17,18 @@
 #include <thread>
 #include <functional>
 
+// Set to false when we Ctrl+C and stops the main loop
+std::atomic<bool> is_running = true;
+
 asio::io_context network_io_context;
 network::server server(network_io_context, 12345);
+asio::signal_set shutdown_signals(network_io_context, SIGINT, SIGTERM);
 
 asio::io_context vision_io_context;
 robo::vision vision;
 
 // Delay between each object detection cycle
-const auto vision_interval = std::chrono::milliseconds(50);
+const auto vision_interval = std::chrono::milliseconds(16);
 asio::basic_waitable_timer<std::chrono::steady_clock> vision_timer(vision_io_context, vision_interval);
 
 robo::controller controller;
@@ -107,7 +111,19 @@ int main(int argc, char* argv[])
     
     vision_timer.async_wait(std::bind(&run_vision, std::ref(server), std::ref(vision), std::ref(vision_timer)));
 
-    while (1)
+    shutdown_signals.async_wait([&](const asio::error_code& error, int signal_number) {
+        if (!error) {
+            std::cout << "Server shutting down. Received signal: " << signal_number << std::endl;
+            server.shutdown();
+
+            network_io_context.stop();
+            vision_io_context.stop();
+
+            is_running.store(false);
+        }
+    });
+
+    while (is_running.load())
     {
         controller.update();
 
@@ -141,10 +157,13 @@ int main(int argc, char* argv[])
 
         handle_client_messages();
 
+        // std::cout << std::chrono::steady_clock::now().time_since_epoch() << std::endl;
         // TODO
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 
     network_thread.join();
     vision_thread.join();
+
+    return 0;
 }

@@ -5,7 +5,9 @@
 
 robo::navgeometry::navgeometry():
 	min_bounds{0.0f, 0.0f, 0.0f},
-	max_bounds{0.0f, 0.0f, 0.0f}
+	max_bounds{0.0f, 0.0f, 0.0f},
+	custom_min_bounds{0.0f, 0.0f, 0.0f},
+	custom_max_bounds{0.0f, 0.0f, 0.0f}
 {}
 
 // Taken from MeshLoaderObj.cpp
@@ -84,4 +86,56 @@ bool robo::navgeometry::load(std::vector<float>& new_vertices, std::vector<int>&
 bool robo::navgeometry::has_geometry() const
 {
 	return vertices.size() > 0 && triangles.size() > 0 && chunky_tri_mesh != nullptr;
+}
+
+const float* robo::navgeometry::get_min_bounds()
+{
+	if (!custom_min_bounds_set)
+	{
+		return min_bounds;
+	}
+
+	return custom_min_bounds;
+}
+
+const float* robo::navgeometry::get_max_bounds()
+{
+	if (!custom_max_bounds_set)
+	{
+		return max_bounds;
+	}
+
+	return custom_max_bounds;
+}
+
+void robo::navgeometry::set_navmesh_min_bounds(const std::optional<vector3f>& bmin)
+{
+	if (!bmin.has_value())
+	{
+		custom_min_bounds_set = false;
+		return;
+	}
+
+	robo::vector3f b = bmin.value();
+	custom_min_bounds[0] = b.x;
+	custom_min_bounds[1] = b.y;
+	custom_min_bounds[2] = b.z;
+
+	custom_min_bounds_set = true;
+}
+
+void robo::navgeometry::set_navmesh_max_bounds(const std::optional<vector3f>& bmax)
+{
+	if (!bmax.has_value())
+	{
+		custom_max_bounds_set = false;
+		return;
+	}
+
+	robo::vector3f b = bmax.value();
+	custom_max_bounds[0] = b.x;
+	custom_max_bounds[1] = b.y;
+	custom_max_bounds[2] = b.z;
+
+	custom_max_bounds_set = true;
 }

@@ -159,7 +159,7 @@ void setup()
 
     Wire.begin();
 
-    driver = motor_driver(5, 7, 6, 3, 1, 2);
+    driver = motor_driver(2, 3, 4, 7, 5, 6);
     driver.stop();
 
     randomSeed(1001);

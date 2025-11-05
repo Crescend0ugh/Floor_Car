@@ -13,33 +13,40 @@ robo::path::path()
 	half_extents[2] = 1.0f;
 }
 
-robo::path::~path()
-{}
-
 void robo::path::init(class navmesh* mesh)
 {
 	navmesh = mesh;
-	query = navmesh->get_nav_query();
+	query = navmesh->nav_query;
 	
 	recalculate();
+}
+
+void robo::path::populate_waypoints_vector()
+{
+	waypoints.reserve(path_waypoints_count);
+
+	for (int i = 0; i < path_waypoints_count; ++i)
+	{
+		waypoints.emplace_back(path_waypoints[3 * i], path_waypoints[3 * i + 1], path_waypoints[3 * i + 2]);
+	}
 }
 
 void robo::path::recalculate()
 { 
 	if (!navmesh) return;
 
-	if (is_start_pos_set) 
+	if (is_path_start_set) 
 	{
-		query->findNearestPoly(start_pos, half_extents, &filter, &start_poly_ref, nullptr);
+		query->findNearestPoly(path_start, half_extents, &filter, &start_poly_ref, nullptr);
 	}
 	else 
 	{
 		start_poly_ref = 0;
 	}
 
-	if (is_end_pos_set) 
+	if (is_path_end_set) 
 	{
-		query->findNearestPoly(end_pos, half_extents, &filter, &end_poly_ref, nullptr);
+		query->findNearestPoly(path_end, half_extents, &filter, &end_poly_ref, nullptr);
 	}
 	else 
 	{
@@ -48,59 +55,73 @@ void robo::path::recalculate()
 	
 	pathfind_status = DT_FAILURE;
 
-	if (!start_poly_ref || !end_poly_ref || !is_start_pos_set || !is_end_pos_set) 
+	if (!start_poly_ref || !end_poly_ref || !is_path_start_set || !is_path_end_set) 
 	{
 		polys_count = 0;
 		path_waypoints_count = 0;
+		waypoints.clear();
+
 		return;
 	}
 
-	query->findPath(start_poly_ref, end_poly_ref, start_pos, end_pos, &filter, polys, &polys_count, MAX_POLYS);
+	query->findPath(start_poly_ref, end_poly_ref, path_start, path_end, &filter, polys, &polys_count, MAX_POLYS);
+
 	path_waypoints_count = 0;
+	waypoints.clear();
 
 	if (polys_count) 
 	{
 		float end_pos_copy[3];
-		dtVcopy(end_pos_copy, end_pos);
+		dtVcopy(end_pos_copy, path_end);
 
 		// In case of partial path, make sure the end point is clamped to the last polygon
 		if (polys[polys_count - 1] != end_poly_ref) 
 		{
-			query->closestPointOnPoly(polys[polys_count - 1], end_pos, end_pos_copy, nullptr);
+			query->closestPointOnPoly(polys[polys_count - 1], path_end, end_pos_copy, nullptr);
 		}
 
-		query->findStraightPath(start_pos, end_pos_copy, polys, polys_count,
+		query->findStraightPath(path_start, end_pos_copy, polys, polys_count,
 			path_waypoints, path_waypoint_flags, path_polys, &path_waypoints_count, MAX_POLYS, DT_STRAIGHTPATH_ALL_CROSSINGS);
+
+		populate_waypoints_vector();
 	}
 }
 
-void robo::path::set_start(const float* position)
+void robo::path::set_start(const vector3f& position)
 {
-	rcVcopy(start_pos, position);
-	is_start_pos_set = true;
+	path_start[0] = position.x;
+	path_start[1] = position.y;
+	path_start[2] = position.z;
+
+	// Copy
+	start = position;
+
+	is_path_start_set = true;
 	recalculate();
 }
 
-void robo::path::set_end(const float* position)
+void robo::path::set_end(const vector3f& position)
 {
-	rcVcopy(end_pos, position);
-	is_end_pos_set = true;
+	path_end[0] = position.x;
+	path_end[1] = position.y;
+	path_end[2] = position.z;
+
+	// Copy
+	end = position;
+
+	is_path_end_set = true;
 	recalculate();
 }
 
-const float* robo::path::get_next_waypoint() const
+std::optional<robo::vector3f> robo::path::get_next_waypoint() const
 {
 	// We've finished traversing the path
 	if (current_waypoint_id > path_waypoints_count - 1) 
 	{
-		return nullptr;
+		return std::nullopt;
 	}
 
-	float goal[3];
-	goal[0] = path_waypoints[3 * current_waypoint_id];
-	goal[1] = path_waypoints[3 * current_waypoint_id + 1];
-	goal[2] = path_waypoints[3 * current_waypoint_id + 2];
-	return goal;
+	return waypoints[current_waypoint_id];
 }
 
 void robo::path::increment_waypoint()
@@ -121,21 +142,8 @@ void robo::path::reset()
 	path_waypoints_count = 0;
 	current_waypoint_id = 0;
 
-	is_start_pos_set = false;
-	is_end_pos_set = false;
-}
+	is_path_start_set = false;
+	is_path_end_set = false;
 
-const float* robo::path::get_waypoint_from_id(int id) const
-{
-	if (id > path_waypoints_count - 1) 
-	{
-		return nullptr;
-	}
-
-	float waypoint[3];
-	waypoint[0] = path_waypoints[3 * id];
-	waypoint[1] = path_waypoints[3 * id + 1];
-	waypoint[2] = path_waypoints[3 * id + 2];
-
-	return waypoint;
+	waypoints.clear();
 }
