@@ -316,7 +316,7 @@ int main()
 
 		BeginMode3D(camera);
 
-		DrawBoundingBox(navmesh_bbox, RED);
+		//DrawBoundingBox(navmesh_bbox, RED);
 
 		DrawModelWires(
 			reconstructed_mesh_model,

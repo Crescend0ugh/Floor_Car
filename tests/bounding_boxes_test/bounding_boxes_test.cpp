@@ -1,4 +1,11 @@
+#if defined(_WIN32)           
+#define NOGDI             // All GDI defines and routines
+#define NOUSER            // All USER defines and routines
+#endif
+
 #include "yolo_model.h"
+
+#include "raylib.h"
 
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
@@ -7,6 +14,7 @@
 #include <pcl/kdtree/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/features/moment_of_inertia_estimation.h>
+#include <pcl/common/transforms.h>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/eigen.hpp>
@@ -22,6 +30,28 @@ const float near_plane_distance = 0.1f;
 void log_point_cloud_size(pcl::PointCloud<pcl::PointXYZ>::Ptr point_cloud)
 {
 	std::cout << "[POINT CLOUD SIZE]: " << point_cloud->points.size() << std::endl;
+}
+
+Model create_point_cloud_model(pcl::PointCloud<pcl::PointXYZ>::Ptr point_cloud)
+{
+    Mesh mesh = { 0 };
+    mesh.vertexCount = point_cloud->points.size();
+    mesh.triangleCount = 0; // No triangles for a point cloud
+
+    mesh.vertices = (float*)MemAlloc(mesh.vertexCount * 3 * sizeof(float));
+
+    for (int i = 0; i < point_cloud->points.size(); ++i)
+    {
+        mesh.vertices[3 * i] = point_cloud->points[i].x;
+        mesh.vertices[3 * i + 1] = point_cloud->points[i].y;
+        mesh.vertices[3 * i + 2] = point_cloud->points[i].z;
+    }
+
+    UploadMesh(&mesh, false);
+
+    // UpdateMeshBuffer(mesh, 0, mesh.vertices, mesh.vertexCount * 3 * sizeof(float), 0);
+
+    return LoadModelFromMesh(mesh);
 }
 
 struct detection_obb
@@ -45,6 +75,62 @@ detection_obb estimate_OBB(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud)
     feature_extractor.getOBB(obb.min_point, obb.max_point, obb.center, obb.rotation_matrix);
 
     return obb;
+}
+
+void draw_detection_obb(const detection_obb& obb, Color color)
+{
+    DrawSphere(Vector3(obb.center.x, obb.center.y, obb.center.z), 0.1, PURPLE);
+
+    Eigen::Vector3f local_vertices[8];
+    local_vertices[0] = Eigen::Vector3f(obb.min_point.x, obb.min_point.y, obb.min_point.z);
+    local_vertices[1] = Eigen::Vector3f(obb.max_point.x, obb.min_point.y, obb.min_point.z);
+    local_vertices[2] = Eigen::Vector3f(obb.max_point.x, obb.max_point.y, obb.min_point.z);
+    local_vertices[3] = Eigen::Vector3f(obb.min_point.x, obb.max_point.y, obb.min_point.z);
+    local_vertices[4] = Eigen::Vector3f(obb.min_point.x, obb.min_point.y, obb.max_point.z);
+    local_vertices[5] = Eigen::Vector3f(obb.max_point.x, obb.min_point.y, obb.max_point.z);
+    local_vertices[6] = Eigen::Vector3f(obb.max_point.x, obb.max_point.y, obb.max_point.z);
+    local_vertices[7] = Eigen::Vector3f(obb.min_point.x, obb.max_point.y, obb.max_point.z);
+
+    // Go from OBB local coordinates to world coordinates
+    Eigen::Matrix3f obb_to_world_rotation = obb.rotation_matrix.transpose();
+    Eigen::Vector3f world_center(obb.center.x, obb.center.y, obb.center.z);
+
+    // Transform all 8 vertices to world coordinates and store as raylib Vector3
+    Vector3 world_vertices[8];
+    for (int i = 0; i < 8; ++i)
+    {
+        // Apply transformation: v_world = (R_transpose * v_local) + center
+        Eigen::Vector3f world_v = obb_to_world_rotation * local_vertices[i] + world_center;
+
+        // Convert to raylib Vector3
+        world_vertices[i] = { world_v.x(), world_v.y(), world_v.z() };
+        DrawSphere(world_vertices[i], 0.1, color);
+    }
+
+    //    v7-----v6
+    //    /|     /|
+    //   v3-----v2|
+    //   | v4---|-v5
+    //   |/     |/
+    //   v0-----v1
+
+    // Bottom face (v0, v1, v2, v3)
+    DrawLine3D(world_vertices[0], world_vertices[1], color);
+    DrawLine3D(world_vertices[1], world_vertices[2], color);
+    DrawLine3D(world_vertices[2], world_vertices[3], color);
+    DrawLine3D(world_vertices[3], world_vertices[0], color);
+
+    // Top face (v4, v5, v6, v7)
+    DrawLine3D(world_vertices[4], world_vertices[5], color);
+    DrawLine3D(world_vertices[5], world_vertices[6], color);
+    DrawLine3D(world_vertices[6], world_vertices[7], color);
+    DrawLine3D(world_vertices[7], world_vertices[4], color);
+
+    // Vertical edges connecting top and bottom faces
+    DrawLine3D(world_vertices[0], world_vertices[4], color);
+    DrawLine3D(world_vertices[1], world_vertices[5], color);
+    DrawLine3D(world_vertices[2], world_vertices[6], color);
+    DrawLine3D(world_vertices[3], world_vertices[7], color);
 }
 
 int main()
@@ -92,6 +178,7 @@ int main()
 
 	log_point_cloud_size(front_point_cloud);
 
+    std::vector<detection_obb> obbs;
     for (int detection_id = 0; detection_id < detections.size(); ++detection_id)
     {
         // Convert OpenCV matrix to Eigen matrix
@@ -155,7 +242,7 @@ int main()
                 filtered_point_cloud->points.push_back(point);
 
                 // Draw point
-                cv::circle(annotated, image_space_point, 1, cv::Scalar(0, 0, 255));
+                //cv::circle(annotated, image_space_point, 1, cv::Scalar(0, 0, 255));
             }
         }
 
@@ -202,10 +289,53 @@ int main()
 
         auto obb = estimate_OBB(cluster_cloud);
         std::cout << "OBB Center: " <<  obb.center << std::endl;
+        obbs.push_back(std::move(obb));
     }
 
-	cv::imshow("image", annotated);
-	cv::waitKey(0);
+	//cv::imshow("image", annotated);
+	//cv::waitKey(0);
+
+    const int screen_width = 2048;
+    const int screen_height = 1024;
+
+    InitWindow(screen_width, screen_height, "NAVMESH VISUALIZER");
+
+    Model point_cloud_model = create_point_cloud_model(front_point_cloud);
+
+    Camera3D camera = { 0 };
+    camera.position = { 0.0f, 0.0f, 5.0f };
+    camera.target = { 50.0f, -2.0f, 0.0f };
+    camera.up = { 0.0f, 0.0f, 1.0f };          // Camera up vector (rotation towards target)
+    camera.fovy = 90.0f;                                // Camera field-of-view Y
+    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+
+    while (!WindowShouldClose())
+    {
+        UpdateCamera(&camera, CAMERA_FREE);
+
+        if (IsKeyPressed(KEY_Z))
+        {
+            camera.target = { 0.0f, 0.0f, 0.0f };
+        }
+
+        BeginDrawing();
+
+        ClearBackground(BLACK);
+
+        BeginMode3D(camera);
+
+        DrawModelPoints(point_cloud_model, Vector3{ 0.0f, 0.0f, 0.0f }, 1.0f, SKYBLUE);
+        for (const auto& obb : obbs)
+        {
+            draw_detection_obb(obb, RED);
+        }
+
+        EndMode3D();
+
+        EndDrawing();
+    }
+
+    CloseWindow();
 
 	return 0;
 }

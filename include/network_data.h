@@ -38,11 +38,13 @@ namespace robo
         {
             none = 0,
             stop,
-            w,
+            w, 
             s,
             a,
             d,
-            pick_up
+            pick_up,
+            servo_ccw,
+            servo_cw
         };
 
         struct point_cloud_mesh_update

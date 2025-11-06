@@ -93,6 +93,14 @@ static void send_rc_command()
     {
         command = robo::network::rc_command::d;
     }
+    else if (IsKeyDown(KEY_LEFT))
+    {
+        command = robo::network::rc_command::servo_ccw;
+    }
+    else if (IsKeyDown(KEY_RIGHT))
+    {
+        command = robo::network::rc_command::servo_cw;
+    }
 
     if (command != robo::network::rc_command::none && client.is_connected)
     {

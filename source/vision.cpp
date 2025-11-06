@@ -1,5 +1,6 @@
 #include "vision.h"
 
+#include <pcl/common/centroid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/kdtree/kdtree.h>
@@ -69,7 +70,7 @@ static pcl::PointCloud<pcl::PointXYZ>::Ptr get_biggest_cluster(pcl::PointCloud<p
     return cluster_cloud;
 }
 
-static robo::detection_obb estimate_OBB(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud)
+static robo::detection_obb estimate_OBB(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud, const yolo::detection& detection)
 {
     pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
     feature_extractor.setInputCloud(cloud);
@@ -78,6 +79,10 @@ static robo::detection_obb estimate_OBB(pcl::PointCloud<pcl::PointXYZ>::ConstPtr
     robo::detection_obb obb;
 
     feature_extractor.getOBB(obb.min_point, obb.max_point, obb.center, obb.rotation_matrix);
+    obb.confidence = detection.prob;
+    obb.label = detection.label;
+
+    pcl::compute3DCentroid(*cloud, obb.centroid);
 
     return obb;
 }
@@ -222,7 +227,7 @@ std::vector<robo::detection_obb> robo::vision::estimate_detection_3d_bounds(pcl:
         }
 
         auto cluster_cloud = get_biggest_cluster(filtered_point_cloud);
-        obbs.push_back(estimate_OBB(cluster_cloud));
+        obbs.push_back(estimate_OBB(cluster_cloud, detections[detection_id]));
     }
 
     return obbs;

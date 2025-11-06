@@ -26,6 +26,8 @@ namespace robo
 {
 	struct detection_obb
 	{
+		Eigen::Vector4f centroid; // Center of mass of point cluster
+
 		pcl::PointXYZ center; // In world coordinates
 		Eigen::Matrix3f rotation_matrix; // From world to OBB
 

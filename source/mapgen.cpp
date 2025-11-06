@@ -116,3 +116,17 @@ void robo::point_cloud::add_point(const robo::vector3f &point)
 {
     points->push_back({point.x, point.y, point.z});
 }
+
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr robo::point_cloud::voxel_grid_downsample(float voxel_size) const
+{
+    pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::VoxelGrid<pcl::PointXYZ> voxel_grid;
+
+    float size = voxel_size; // Edge length of the 3D grid cube.
+    voxel_grid.setLeafSize(size, size, size);
+    voxel_grid.setInputCloud(points);
+    voxel_grid.filter(*downsampled_cloud);
+
+    return downsampled_cloud;
+}

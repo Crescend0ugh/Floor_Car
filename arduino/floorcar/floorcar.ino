@@ -1,11 +1,15 @@
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Servo.h>
+
 #include "src/write_buffer.h"
 #include "src/motor_driver.h"
 
-#include <MPU9250.h>
 #include <Wire.h>
 
 motor_driver driver;
-// MPU9250 imu(Wire, 0x68);
+Adafruit_MPU6050 mpu;
+Servo scooper_servo;
 
 const unsigned long update_rate_ms = 16;
 
@@ -32,7 +36,9 @@ enum rc_command
     s,
     a,
     d,
-    pick_up
+    pick_up,
+    servo_ccw,
+    servo_cw
 };
 
 // Sometimes, the serial has 3 bytes available when we expect 4, for whatever reason, so this is a failsafe
@@ -112,23 +118,27 @@ void handle_rc_command()
     {
     case (rc_command::stop):
     {
+        send_log("STOP");
         driver.stop();
         break;
     }
     case (rc_command::w):
     {
+        send_log("W");
         driver.set_direction(left | right, forward);
         driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::s):
     {
+        send_log("S");
         driver.set_direction(left | right, backward);
         driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::a):
     {
+        send_log("A");
         driver.set_left_direction(backward);
         driver.set_right_direction(forward);
         driver.set_speed(left | right, 255);
@@ -136,6 +146,7 @@ void handle_rc_command()
     }
     case (rc_command::d):
     {
+        send_log("D");
         driver.set_left_direction(forward);
         driver.set_right_direction(backward);
         driver.set_speed(left | right, 255);
@@ -143,8 +154,21 @@ void handle_rc_command()
     }
     case (rc_command::pick_up):
     {
+        send_log("PICK UP");
         driver.stop();
         // TODO
+        break;
+    }
+    case (rc_command::servo_ccw):
+    {
+        send_log("CCW");
+        scooper_servo.write(180);
+        break;
+    }
+     case (rc_command::servo_cw):
+    {
+        send_log("CW");
+        scooper_servo.write(0);
         break;
     }
     default:
@@ -162,15 +186,19 @@ void setup()
     driver = motor_driver(2, 3, 4, 7, 5, 6);
     driver.stop();
 
+    scooper_servo.attach(9);
+    scooper_servo.write(90);
+
     randomSeed(1001);
 
-    /*
-    while (imu.begin() != INV_SUCCESS) 
-    {
-        log("Failed to initialize MPU9250");
-        delay(1000);
-    }
-    */
+    // if (!mpu.begin()) 
+    // {
+    //     Serial.println("Failed to find MPU6050 chip");
+    //     while (1) {
+    //         delay(10);
+    //     }
+    // }
+    // mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
 
     delay(1000);
 }
@@ -183,31 +211,35 @@ void loop()
     // Or do millis() - previous_loop_time
     float delta_time = update_rate_ms / 1000.0f;
 
-    acceleration[0] = random(-1000, 1000) / 13056.0;
-    acceleration[1] = random(-1000, 1000) / 1660.0;
-    acceleration[2] = random(-1000, 1000) / 232.0;
-    angular_velocity[0] = random(-1000, 1000) / 1400.0;
-    angular_velocity[1] = random(-1000, 1000) / 43.0;
-    angular_velocity[2] = random(-1000, 1000) / 54.0;
+    // sensors_event_t a, g, t;
+    // mpu.getEvent(&a, &g, &t);
+
+    // acceleration[0] = a.acceleration.x;
+    // acceleration[1] = a.acceleration.y;
+    // acceleration[2] = a.acceleration.z;
+    // angular_velocity[0] = g.gyro.x;
+    // angular_velocity[1] = g.gyro.y;
+    // angular_velocity[2] = g.gyro.z;
     // TODO: Read IMU sensor data into above data (however it's done)
 
     euler_method(velocity, acceleration, delta_time);
     euler_method(position, velocity, delta_time);
     euler_method(rotation, angular_velocity, delta_time);
 
-    send_imu_data();
-
+    //send_imu_data();
+    
     // Read commands from Raspberry Pi
     had_read_error = false;
 
     if (Serial.available() > 0)
     {
         int command_id = Serial.read();
-
+        send_log("something to read!");
         switch (command_id)
         {
         case (rc_header_byte):
         {
+            send_log("RC");
             handle_rc_command();
             break;
         }
@@ -251,12 +283,13 @@ void loop()
         }   
         }
 
-        clear_serial_buffer();
+        //clear_serial_buffer();
     }
     else
     {
         // No commands = stop moving
         driver.stop();
+        scooper_servo.write(90);
     }
 
     delay(update_rate_ms);

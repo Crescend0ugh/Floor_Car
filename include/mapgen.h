@@ -7,6 +7,7 @@
 #include <pcl/point_types.h>
 #include <pcl/search/kdtree.h>
 #include <pcl/common/io.h>
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/surface/gp3.h>
 #include <pcl/surface/poisson.h>
@@ -31,6 +32,8 @@ namespace robo
         pcl::PolygonMesh reconstruct_mesh_from_points() const;
 
         void add_point(const vector3f& point);
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr voxel_grid_downsample(float voxel_size = 0.2f) const;
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr points;
     };
