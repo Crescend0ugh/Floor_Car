@@ -14,43 +14,64 @@
 #pragma once
 
 #include "zpp_bits.h"
+#include "network_data.h"
 #include "serialib.h"
-
-struct imu_data
-{
-	float x;
-	float y;
-	float z;
-
-	float roll;
-	float pitch;
-	float yaw; // This is the heading
-};
+#include "Packet.h"
 
 struct microphone_data
 {
-
+	// TODO
 };
 
-class arduino_serial
+namespace robo
 {
-private:
-	serialib port;
-
-	std::optional<imu_data> latest_imu_data = std::nullopt;
-
-	// Change this
-	std::vector<microphone_data> microphone_inputs;
-
-public:
-	arduino_serial();
-	std::optional<imu_data> read_imu_data();
-
-	void read();
-	void write(std::string data, bool at_front = false);
-
-	bool is_connected()
+	
+	class arduino_serial
 	{
-		return port.isDeviceOpen();
-	}
-};
+	private:
+		Packet packet;
+		int8_t status = -1;
+		uint8_t bytes_read = 0;
+
+		serialib port;
+
+		// Change this
+		std::vector<microphone_data> microphone_inputs;
+
+		uint8_t send_data(const uint16_t& len, const uint8_t packet_id = 0);
+		uint8_t available();
+		void reset();
+		void write(std::string data);
+
+		template <typename T>
+		uint16_t tx(const T& val, const uint16_t& index = 0, const uint16_t& len = sizeof(T))
+		{
+			return packet.txObj(val, index, len);
+		}
+
+		template <typename T>
+		uint16_t rx(const T& val, const uint16_t& index = 0, const uint16_t& len = sizeof(T))
+		{
+			return packet.rxObj(val, index, len);
+		}
+
+		template <typename T>
+		uint8_t send_datum(const T& val, const uint16_t& len = sizeof(T))
+		{
+			return send_data(packet.txObj(val, 0, len));
+		}
+
+	public:
+		arduino_serial();
+
+		void read();
+		void close();
+
+		bool is_connected()
+		{
+			return port.isDeviceOpen();
+		}
+
+		void send_rc_command(robo::network::rc_command command);
+	};
+}

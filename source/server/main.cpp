@@ -14,6 +14,7 @@
 #include "vision.h"
 #include "controller.h"
 #include "serialib.h"
+#include "arduino_serial.h"
 
 #include <raylib.h>
 #include <iostream>
@@ -33,6 +34,9 @@ asio::signal_set shutdown_signals(network_io_context, SIGINT, SIGTERM);
 robo::vision vision;
 asio::io_context vision_io_context;
 asio::steady_timer vision_timer(vision_io_context);
+
+// Arduino serial
+robo::arduino_serial arduino_serial;
 
 // Rotation and translation relative to world coordinate system
 Eigen::Affine3f robot_world_pose = Eigen::Affine3f::Identity(); 
@@ -156,7 +160,7 @@ static void handle_client_messages()
         {
             robo::network::rc_command command;
             network::deserialize(command, data);
-            controller.send_rc_command_to_arduino(command);
+            arduino_serial.send_rc_command(command);
 
             break;
         }
@@ -191,6 +195,7 @@ int main(int argc, char* argv[])
     while (is_running.load())
     {
         controller.update();
+        arduino_serial.read();
 
         for (const auto& detection : vision.detections)
         {
@@ -224,11 +229,12 @@ int main(int argc, char* argv[])
 
         // std::cout << std::chrono::steady_clock::now().time_since_epoch() << std::endl;
         // TODO
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     network_thread.join();
     vision_thread.join();
+    arduino_serial.close();
 
     return 0;
 }

@@ -84,6 +84,7 @@ target_link_libraries(FloorCar_lib
         ncnn
         ${PCL_LIBRARIES}
         serialib
+        serial_transfer
 )
 
 add_executable(FloorCar ${SERVER_SOURCES} source/server/main.cpp)

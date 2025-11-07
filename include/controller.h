@@ -13,7 +13,6 @@
 
 #include "vector.h"
 #include "network_data.h"
-#include "arduino_serial.h"
 
 #include <Eigen/Dense>
 #include <opencv2/core/eigen.hpp>
@@ -69,13 +68,9 @@ namespace robo
 	private:
 		command_context current_command_context;
 
-		void send_command_to_arduino(command::command command_to_send);
-
 		bool next_command();
 
 	public:
-		class arduino_serial arduino_serial;
-
 		std::queue<command::command> command_queue;
 		std::optional<command::command> current_command = std::nullopt;
 
@@ -92,7 +87,6 @@ namespace robo
 
 		void clear_command_queue();
 		void update();
-		void send_rc_command_to_arduino(robo::network::rc_command command);
 
 		void normalize_heading()
 		{

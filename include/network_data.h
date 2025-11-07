@@ -34,7 +34,7 @@ namespace robo
         };
 
         // Client to server
-        enum rc_command
+        enum rc_command : uint8_t
         {
             none = 0,
             stop,

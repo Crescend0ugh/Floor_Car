@@ -3,8 +3,6 @@
 
 using namespace std::chrono_literals;
 
-static const unsigned char rc_command_header = 0xFF;
-
 static constexpr auto seconds_to_chrono_nanoseconds(const float time_seconds)
 {
 	return std::chrono::round<std::chrono::nanoseconds>(std::chrono::duration<float>(time_seconds));
@@ -48,26 +46,6 @@ void robo::controller::clear_command_queue()
 	}
 }
 
-void robo::controller::send_command_to_arduino(robo::command::command command_to_send)
-{
-	std::string serialized;
-	zpp::bits::out out(serialized);
-	// Amazing! It handles std::variant perfectly!
-	out(command_to_send).or_throw();
-	
-	arduino_serial.write(serialized);
-}
-
-void robo::controller::send_rc_command_to_arduino(robo::network::rc_command command)
-{
-	std::string serialized;
-	zpp::bits::out out(serialized);
-	out(rc_command_header).or_throw();
-	out(command).or_throw();
-
-	arduino_serial.write(serialized);
-}
-
 bool robo::controller::next_command()
 {
 	current_command.reset();
@@ -84,25 +62,12 @@ bool robo::controller::next_command()
 	current_command_context.start_position = imu_position;
 	current_command_context.start_heading = heading;
 
-	send_command_to_arduino(current_command.value());
-
 	return true;
 }
 
 void robo::controller::update()
 {
 	auto current_time = std::chrono::steady_clock::now();
-
-	arduino_serial.read();
-
-	std::optional<imu_data> imu_option = arduino_serial.read_imu_data();
-	if (imu_option.has_value())
-	{
-		imu_data& data = imu_option.value();
-		imu_position = Eigen::Vector3f(data.x, data.y, data.z);
-		imu_rotation = euler_angles_to_rotation_matrix(data.roll, data.pitch, data.yaw);
-		heading = data.yaw;
-	}
 
 	// Get next command
 	if (!current_command.has_value() && !command_queue.empty())
