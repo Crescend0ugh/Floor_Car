@@ -1,6 +1,7 @@
 #include "Packet.h"
 
 #include <chrono>
+#include <cstring>
 
 PacketCRC crc;
 

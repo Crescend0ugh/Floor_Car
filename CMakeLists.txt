@@ -48,6 +48,7 @@ endif()
 set(SERVER_SOURCES
     source/arduino_serial.cpp
     source/controller.cpp
+    source/ekf.cpp
     source/mapgen.cpp
     source/navgeometry.cpp
     source/navmesh.cpp
@@ -64,6 +65,7 @@ target_include_directories(FloorCar_lib
         include/
         third_party/asio/include
         third_party/zpp_bits
+        third_party/kalman
 )
 
 target_compile_definitions(FloorCar_lib

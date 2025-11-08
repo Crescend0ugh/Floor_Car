@@ -227,6 +227,7 @@ int main(int argc, char* argv[])
 
         handle_client_messages();
 
+        //arduino_serial.send_rc_command(robo::network::rc_command::servo_ccw);
         // std::cout << std::chrono::steady_clock::now().time_since_epoch() << std::endl;
         // TODO
         std::this_thread::sleep_for(std::chrono::milliseconds(50));

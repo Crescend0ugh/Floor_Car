@@ -98,13 +98,13 @@ void handle_rc_command(rc_command command)
     case (rc_command::servo_ccw):
     {
         send_log("CCW");
-        //scooper_servo.write(180);
+        scooper_servo.write(180);
         break;
     }
      case (rc_command::servo_cw):
-    {
+    {0
         send_log("CW");
-        //scooper_servo.write(0);
+        scooper_servo.write(0);
         break;
     }
     default:
@@ -151,5 +151,5 @@ void loop()
         scooper_servo.write(90);
     }
 
-    delay(10);
+    delay(50);
 }

@@ -1,6 +1,7 @@
 #include "arduino_serial.h"
 
 #include <iostream>
+#include <thread>
 
 const unsigned char microphone_data_header = 0x02;
 const unsigned char log_string_header = 0x03;
@@ -11,7 +12,7 @@ robo::arduino_serial::arduino_serial()
 #ifdef __linux__
 	std::string arduino_port_name = "/dev/ttyUSB0"; // Will always be the case for the Pi
 #else
-	std::string arduino_port_name = "COM3"; // Windows USB (CHANGE TO THE ONE THE ARDUINO IDE SAYS IT'S USING)
+	std::string arduino_port_name = "COM5"; // Windows USB (CHANGE TO THE ONE THE ARDUINO IDE SAYS IT'S USING)
 #endif
 
 	char opened = port.openDevice(arduino_port_name.c_str(), 9600);
