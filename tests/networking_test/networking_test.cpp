@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
 
 		std::string ip = "10.20.2.14";
 		asio::io_context io_context;
-		network::client client(io_context, ip, 12345);
+		network::client client(io_context, ip, "12345");
 		std::thread thread([&io_context] {
 			io_context.run();
 		});

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "kalman/ExtendedKalmanFilter.hpp"
 #include "kalman/LinearizedMeasurementModel.hpp"
 #include "kalman/LinearizedSystemModel.hpp"
+#include "kalman/UnscentedKalmanFilter.hpp"
 
 #include "vector.h"
 
@@ -13,30 +13,43 @@
 
 namespace model
 {
-    class state : public Kalman::Vector<float, 12>
+    class state : public Kalman::Vector<float, 19>
     {
     public:
-        KALMAN_VECTOR(state, float, 12)
+        void normalize_quaternion();
+
+        KALMAN_VECTOR(state, float, 19)
 
             // Position
             declare_field(x, 0)
             declare_field(y, 1)
             declare_field(z, 2)
 
-            // Orientation (in RADIANS)
-            declare_field(roll, 3)
-            declare_field(pitch, 4)
-            declare_field(yaw, 5)
-
             // Linear velocity
-            declare_field(dx, 6)
-            declare_field(dy, 7)
-            declare_field(dz, 8)
+            declare_field(dx, 3)
+            declare_field(dy, 4)
+            declare_field(dz, 5)
 
-            // Angular velocity
-            declare_field(droll, 9)
-            declare_field(dpitch, 10)
-            declare_field(dyaw, 11)
+            // Orientation (quaternion)
+            declare_field(qw, 6)
+            declare_field(qx, 7)
+            declare_field(qy, 8)
+            declare_field(qz, 9)
+
+            // Angular velocities about x, y and z axes
+            declare_field(wx, 10)
+            declare_field(wy, 11)
+            declare_field(wz, 12)
+
+            // IMU accelerometer biases
+            declare_field(bias_ax, 13)
+            declare_field(bias_ay, 14)
+            declare_field(bias_az, 15)
+
+            // IMU gyroscope biases
+            declare_field(bias_gx, 16)
+            declare_field(bias_gy, 17)
+            declare_field(bias_gz, 18)
     };
 
     // IMU accelerometer and gyroscope readings
@@ -60,53 +73,7 @@ namespace model
     {
     public:
         // The non-linear state transition function
-        state f(const state& current, const control& control) const
-        {
-            state predicted;
-
-            // New angle = old angle + delta angle
-            auto new_roll = current.roll() + control.gx();
-            auto new_pitch = current.pitch() + control.gy();
-            auto new_yaw = current.yaw() + control.gz();
-
-            
-            Eigen::Matrix3f rotation_matrix = (Eigen::AngleAxisf(new_roll, Eigen::Vector3f::UnitX())
-                * Eigen::AngleAxisf(new_pitch, Eigen::Vector3f::UnitY())
-                * Eigen::AngleAxisf(new_yaw, Eigen::Vector3f::UnitZ())).toRotationMatrix();
-
-            Eigen::Vector3f world_accel = rotation_matrix * Eigen::Vector3f(control.ax(), control.ay(), control.az());
-
-            // Double integrate acceleration to derive velocity and position
-            predicted.dx() = current.dx() + control.ax();
-            predicted.dy() = current.dy() + control.ay();
-            predicted.dz() = current.dz() + control.az();
-
-            predicted.x() = current.x() + predicted.dx();
-            predicted.y() = current.y() + predicted.dy();
-            predicted.z() = current.z() + predicted.dz();
-
-            predicted.roll() = new_roll;
-            predicted.pitch() = new_pitch;
-            predicted.yaw() = new_yaw;
-            
-            return predicted;
-        }
-
-    protected:
-        void updateJacobians(const state& state, const control& control)
-        {
-            // F = df/dx (Jacobian of state transition w.r.t. the state)
-            this->F.setZero();
-
-            // partial derivative of x.x() w.r.t. x.x()
-            this->F(state::_x, state::_x) = 1;
-
-            this->F(state::_y, state::_y) = 1;
-
-            this->F(state::_y, state::_z) = 1;
-
-            this->W.setIdentity();
-        }
+        state f(const state& current, const control& control) const;
     };
 
     class encoder_measurement : public Kalman::Vector<float, 2>
@@ -114,9 +81,9 @@ namespace model
     public:
         KALMAN_VECTOR(encoder_measurement, float, 2)
             // Linear velocity forwards
-            declare_field(vel, 0)
+            declare_field(vel_forward, 0)
             // Angular velocity about yaw axis
-            declare_field(gz, 1)
+            declare_field(wz, 1)
     };
 
     template<template<class> class CovarianceBase = Kalman::StandardBase>
@@ -129,26 +96,14 @@ namespace model
         }
 
         // Predict sensor measurement from current state to limit accelerometer velocity error
-        encoder_measurement h(const state& current) const
-        {
-            encoder_measurement measurement;
-
-            float predicted_forward_vel = current.dx() * std::cos(current.yaw()) + current.dy() * std::sin(current.yaw());
-
-            measurement.vel() = predicted_forward_vel;
-
-            return measurement;
-        }
-    protected:
-        void updateJacobians(const state& state, const control& control)
-        {
-
-        }
+        encoder_measurement h(const state& current) const;
     };
 }
 
 namespace robo
 {
+    // These are the changes over a discrete time step
+    // So multiply the raw IMU readings by the time step (0.01)
     struct imu_reading
     {
         float ax;
@@ -160,24 +115,29 @@ namespace robo
         float gz;
     };
 
+    // The angular velocities of a left and right wheel
     struct encoder_reading
     {
-
+        float vel_left;
+        float vel_right;
     };
 
-    class ekf
+    class ukf
     {
     private:
         model::state state;
         model::control control;
         model::system_model<> system;
 
-        Kalman::ExtendedKalmanFilter<model::state> predictor;
-
+        Kalman::UnscentedKalmanFilter<model::state> predictor;
         model::encoder_measurement_model<> encoder_measurement_model;
 
+        float wheel_radius;
+        float wheel_base_y; // Distance between left and right wheels
     public:
-        ekf();
-        Eigen::Affine3f update(const imu_reading& imu, const encoder_reading& encoder);
+        ukf(float wheel_radius, float wheel_base_y);
+        void predict(const imu_reading& imu);
+        void update_encoders(const encoder_reading& encoders);
+        Eigen::Affine3f get_transform() const;
     };
 }

@@ -7,6 +7,8 @@ set(TEST_SUBDIRECTORIES
 	opencv_test
 	bounding_boxes_test
 	mesh_reconstruction_test
+	ekf_test
+	voice_command_test
 )
 
 foreach(SUBDIRECTORY IN LISTS TEST_SUBDIRECTORIES)

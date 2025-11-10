@@ -9,6 +9,7 @@ endif()
 
 find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
+find_package(SDL2 REQUIRED)
 
 #for Adithya
 if(NOT TARGET JsonCpp::JsonCpp)
@@ -87,6 +88,10 @@ target_link_libraries(FloorCar_lib
         ${PCL_LIBRARIES}
         serialib
         serial_transfer
+        whisper-common
+        whisper-common-sdl
+        whisper
+        ${CMAKE_THREAD_LIBS_INIT}
 )
 
 add_executable(FloorCar ${SERVER_SOURCES} source/server/main.cpp)
