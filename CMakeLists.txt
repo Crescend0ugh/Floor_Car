@@ -56,6 +56,7 @@ set(SERVER_SOURCES
     source/network.cpp
     source/path.cpp
     source/vision.cpp
+    source/voice_detection.cpp
     source/yolo_model.cpp
 )
 
@@ -93,6 +94,10 @@ target_link_libraries(FloorCar_lib
         whisper
         ${CMAKE_THREAD_LIBS_INIT}
 )
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	target_link_libraries(FloorCar_lib PUBLIC pigpio)
+endif()
 
 add_executable(FloorCar ${SERVER_SOURCES} source/server/main.cpp)
 ADD_CONTENT_POST_BUILD(FloorCar)

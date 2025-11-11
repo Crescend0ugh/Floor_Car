@@ -1,24 +1,25 @@
 #pragma once
 
-#include "kalman/LinearizedMeasurementModel.hpp"
-#include "kalman/LinearizedSystemModel.hpp"
+#include "kalman/MeasurementModel.hpp"
+#include "kalman/SystemModel.hpp"
 #include "kalman/UnscentedKalmanFilter.hpp"
+//#include "kalman/SquareRootUnscentedKalmanFilter.hpp"
 
 #include "vector.h"
 
 #define declare_field(field_name, id) \
     static constexpr size_t _##field_name = (id); \
-    float (field_name)() const { return (*this)[_##field_name]; } \
-    float& (field_name)() { return (*this)[_##field_name]; } \
+    double (field_name)() const { return (*this)[_##field_name]; } \
+    double& (field_name)() { return (*this)[_##field_name]; } \
 
 namespace model
 {
-    class state : public Kalman::Vector<float, 19>
+    class state : public Kalman::Vector<double, 19>
     {
     public:
         void normalize_quaternion();
 
-        KALMAN_VECTOR(state, float, 19)
+        KALMAN_VECTOR(state, double, 19)
 
             // Position
             declare_field(x, 0)
@@ -53,10 +54,10 @@ namespace model
     };
 
     // IMU accelerometer and gyroscope readings
-    class control : public Kalman::Vector<float, 6>
+    class control : public Kalman::Vector<double, 6>
     {
     public:
-        KALMAN_VECTOR(control, float, 6)
+        KALMAN_VECTOR(control, double, 6)
             // Acceleration
             declare_field(ax, 0)
             declare_field(ay, 1)
@@ -68,33 +69,26 @@ namespace model
             declare_field(gz, 5)
     };
 
-    template<template<class> class CovarianceBase = Kalman::StandardBase>
-    class system_model : public Kalman::LinearizedSystemModel<state, control, CovarianceBase>
+    class system_model : public Kalman::SystemModel<state, control, Kalman::StandardBase>
     {
     public:
         // The non-linear state transition function
         state f(const state& current, const control& control) const;
     };
 
-    class encoder_measurement : public Kalman::Vector<float, 2>
+    class encoder_measurement : public Kalman::Vector<double, 2>
     {
     public:
-        KALMAN_VECTOR(encoder_measurement, float, 2)
+        KALMAN_VECTOR(encoder_measurement, double, 2)
             // Linear velocity forwards
             declare_field(vel_forward, 0)
             // Angular velocity about yaw axis
             declare_field(wz, 1)
     };
 
-    template<template<class> class CovarianceBase = Kalman::StandardBase>
-    class encoder_measurement_model : public Kalman::LinearizedMeasurementModel<state, encoder_measurement, CovarianceBase>
+    class encoder_measurement_model : public Kalman::MeasurementModel<state, encoder_measurement, Kalman::StandardBase>
     {
     public:
-        encoder_measurement_model()
-        {
-            this->V.setIdentity();
-        }
-
         // Predict sensor measurement from current state to limit accelerometer velocity error
         encoder_measurement h(const state& current) const;
     };
@@ -106,38 +100,37 @@ namespace robo
     // So multiply the raw IMU readings by the time step (0.01)
     struct imu_reading
     {
-        float ax;
-        float ay;
-        float az;
+        double ax;
+        double ay;
+        double az;
 
-        float gx;
-        float gy;
-        float gz;
+        double gx;
+        double gy;
+        double gz;
     };
 
     // The angular velocities of a left and right wheel
     struct encoder_reading
     {
-        float vel_left;
-        float vel_right;
+        double vel_left;
+        double vel_right;
     };
 
     class ukf
     {
     private:
-        model::state state;
-        model::control control;
-        model::system_model<> system;
+        model::system_model system;
 
         Kalman::UnscentedKalmanFilter<model::state> predictor;
-        model::encoder_measurement_model<> encoder_measurement_model;
+        model::encoder_measurement_model encoder_measurement_model;
 
-        float wheel_radius;
-        float wheel_base_y; // Distance between left and right wheels
+        double wheel_radius;
+        double wheel_base_y; // Distance between left and right wheels
+
     public:
-        ukf(float wheel_radius, float wheel_base_y);
+        ukf(double wheel_radius, double wheel_base_y);
         void predict(const imu_reading& imu);
         void update_encoders(const encoder_reading& encoders);
-        Eigen::Affine3f get_transform() const;
+        Eigen::Affine3d get_transform() const;
     };
 }

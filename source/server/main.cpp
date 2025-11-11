@@ -15,6 +15,7 @@
 #include "controller.h"
 #include "serialib.h"
 #include "arduino_serial.h"
+#include "voice_detection.h"
 
 #include <raylib.h>
 #include <iostream>
@@ -35,6 +36,11 @@ robo::vision vision;
 asio::io_context vision_io_context;
 asio::steady_timer vision_timer(vision_io_context);
 
+// Voice detection
+robo::voice_detection voice_detection;
+asio::io_context voice_detection_io_context;
+asio::steady_timer voice_detection_timer(voice_detection_io_context);
+
 // Arduino serial
 robo::arduino_serial arduino_serial;
 
@@ -42,7 +48,7 @@ robo::arduino_serial arduino_serial;
 Eigen::Affine3f robot_world_pose = Eigen::Affine3f::Identity(); 
 robo::point_cloud world_point_cloud;
 
-// Navmesh
+// Navmesh, meshing
 robo::navmesh navmesh(robo::navigation_params
     {
         .agent_radius = 0.2f,
@@ -61,10 +67,6 @@ robo::controller controller;
 // Objects we're looking for
 std::vector<std::string> valid_detection_class_names = {"apple", "orange", "sports ball"};
 
-// PLACEHOLDER FOR BENCHMARK
-float current_delta_yaw = 0.0f; // Degrees
-float delta_yaw_epsilon = 0.1f; // Degrees
-
 static bool is_valid_detection(int label)
 {
     return std::find(
@@ -72,6 +74,18 @@ static bool is_valid_detection(int label)
         valid_detection_class_names.end(), 
         yolo::get_detection_class_name(label)
     ) == valid_detection_class_names.end();
+}
+
+static void run_voice_detection(robo::voice_detection& voice_detection, asio::steady_timer& timer)
+{
+    std::string command = voice_detection.process();
+    if (!command.empty())
+    {
+        std::cout << "GOT VOICE COMMAND: " << command << std::endl;
+    }
+
+    timer.expires_at(std::chrono::steady_clock::now() + std::chrono::milliseconds(100));
+    timer.async_wait(std::bind(&run_voice_detection, std::ref(voice_detection), std::ref(timer)));
 }
 
 static void run_lidar_sweep()
@@ -174,23 +188,31 @@ static void handle_client_messages()
 
 int main(int argc, char* argv[]) 
 {
-    std::thread network_thread([&] { network_io_context.run(); });
-    std::thread vision_thread([&] { vision_io_context.run(); });
+    voice_detection.init();
 
     vision_timer.expires_after(std::chrono::seconds(1));
     vision_timer.async_wait(std::bind(&run_vision, std::ref(server), std::ref(vision), std::ref(vision_timer)));
 
+    voice_detection_timer.expires_after(std::chrono::milliseconds(100));
+    voice_detection_timer.async_wait(std::bind(&run_voice_detection, std::ref(voice_detection), std::ref(voice_detection_timer)));
+
     shutdown_signals.async_wait([&](const asio::error_code& error, int signal_number) {
-        if (!error) {
+        if (!error) 
+        {
             std::cout << "Server shutting down. Received signal: " << signal_number << std::endl;
             server.shutdown();
 
             network_io_context.stop();
             vision_io_context.stop();
+            voice_detection_io_context.stop();
 
             is_running.store(false);
         }
     });
+
+    std::thread voice_detection_thread([&] { voice_detection_io_context.run(); });
+    std::thread network_thread([&] { network_io_context.run(); });
+    std::thread vision_thread([&] { vision_io_context.run(); });
 
     while (is_running.load())
     {
@@ -205,36 +227,17 @@ int main(int argc, char* argv[])
             };
 
             float delta_yaw = vision.compute_delta_yaw_to_detection_center(detection);
-
-#if 0
-            // Turn until we're facing the object
-            if (std::abs(delta_yaw) > delta_yaw_epsilon)
-            {
-                if (delta_yaw > 0.0f) // To the right
-                {
-                    controller.send_rc_command_to_arduino(robo::network::rc_command::d);
-                }
-                else if (delta_yaw < 0.0f) // Object is to the left
-                {
-                    controller.send_rc_command_to_arduino(robo::network::rc_command::a);
-                }
-            }
-            // Move forward?
-#endif
             
             break;
         }
 
         handle_client_messages();
-
-        //arduino_serial.send_rc_command(robo::network::rc_command::servo_ccw);
-        // std::cout << std::chrono::steady_clock::now().time_since_epoch() << std::endl;
-        // TODO
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     network_thread.join();
     vision_thread.join();
+    voice_detection_thread.join();
     arduino_serial.close();
 
     return 0;
