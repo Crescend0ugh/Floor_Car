@@ -54,6 +54,7 @@ set(SERVER_SOURCES
     source/navgeometry.cpp
     source/navmesh.cpp
     source/network.cpp
+    source/object_tracker.cpp
     source/path.cpp
     source/vision.cpp
     source/voice_detection.cpp

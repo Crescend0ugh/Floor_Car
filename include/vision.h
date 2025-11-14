@@ -35,8 +35,8 @@ namespace robo
 		pcl::PointXYZ min_point;
 		pcl::PointXYZ max_point;
 
-		int label;
-		float confidence;
+		int label = 0;
+		float confidence = 0.0f;
 	};
 
 	class vision
@@ -50,10 +50,6 @@ namespace robo
 		cv::Mat camera_to_lidar_transform; // Inverse of lidar_to_camera_transform
 
 		cv::VideoCapture capture;
-		cv::Mat camera_frame; // Raw camera frame
-		cv::Mat undistorted_camera_frame; // Camera frame after undistorting based on intrinsics and distortion coefficients
-
-		cv::Size image_size = cv::Size{ 640, 480 };
 
 		std::chrono::milliseconds yolo_processing_time; // For sending to client
 
@@ -66,7 +62,12 @@ namespace robo
 		bool is_client_connected = false;
 		bool is_enabled = true;
 
+		cv::Mat camera_frame; // Raw camera frame
+		cv::Mat undistorted_camera_frame; // Camera frame after undistorting based on intrinsics and distortion coefficients
+
 		std::vector<yolo::detection> detections; // Can be accessed at anytime, anywhere. Contains 2D detection data.
+
+		cv::Size image_size = cv::Size{ 640, 480 };
 
 		vision();
 		bool initialize_camera();
@@ -74,11 +75,12 @@ namespace robo
 		std::vector<detection_obb> estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud) const;
 
 		bool grab_frame();
+		const cv::Mat& capture_frame();
 		void detect_from_camera();
 
-		robo::network::camera_frame serialize_detection_results();
+		robo::network::camera_frame serialize_detection_results() const;
 
 		// Makeshift
-		float compute_delta_yaw_to_detection_center(const yolo::detection& detection) const;
+		float compute_delta_yaw_to_bbox_center(const cv::Rect& bbox) const;
 	};
 }

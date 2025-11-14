@@ -265,7 +265,7 @@ int main()
         );
 
         DrawText(TextFormat("Position Error: %.3f m", error), 10, 190, 16, BLACK);
-        DrawText(TextFormat("True Pos: (%.2f, %.2f)", true_position.x, true_position.y), 10, 210, 16, BLUE);
+        DrawText(TextFormat("True Pos: (%.2f, %.2f)", agent.x, agent.y), 10, 210, 16, BLUE);
         DrawText(TextFormat("Est Pos: (%.2f, %.2f)", transform.translation().x(), transform.translation().y()), 10, 230, 16, RED);
         DrawText(TextFormat("True Yaw: %.2f°", agent.theta * 180.0 / PI), 10, 250, 16, BLUE);
         DrawText(TextFormat("Est Yaw: %.2f°", estimated_yaw * 180.0 / PI), 10, 270, 16, RED);

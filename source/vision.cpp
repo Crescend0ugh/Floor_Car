@@ -244,16 +244,14 @@ bool robo::vision::grab_frame()
     return capture.grab();
 }
 
-void robo::vision::detect_from_camera()
+const cv::Mat& robo::vision::capture_frame()
 {
-    detections.clear();
-
     capture.retrieve(camera_frame);
 
     if (camera_frame.empty())
     {
         std::cerr << "Warning: Captured empty frame from camera" << std::endl;
-        return;
+        return camera_frame;
     }
 
     cv::Mat& final_image = camera_frame;
@@ -266,15 +264,24 @@ void robo::vision::detect_from_camera()
         final_image = undistorted_camera_frame;
     }
 
+    return final_image;
+}
+
+void robo::vision::detect_from_camera()
+{
+    detections.clear();
+
+    const cv::Mat& image = capture_frame();
+
     // Get processing time for the client
     auto start_time = std::chrono::high_resolution_clock::now();
-    yolo.detect(final_image, detections);
+    yolo.detect(image, detections);
     auto end_time = std::chrono::high_resolution_clock::now();
 
     yolo_processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 }
 
-robo::network::camera_frame robo::vision::serialize_detection_results()
+robo::network::camera_frame robo::vision::serialize_detection_results() const
 {
     cv::Mat image = yolo::annotate_detections(
         (is_intrinsics_loaded) ? undistorted_camera_frame : camera_frame,
@@ -306,14 +313,14 @@ robo::network::camera_frame robo::vision::serialize_detection_results()
     };
 }
 
-float robo::vision::compute_delta_yaw_to_detection_center(const yolo::detection& detection) const
+float robo::vision::compute_delta_yaw_to_bbox_center(const cv::Rect& bbox) const
 {
     if (!is_intrinsics_loaded)
     {
         return 0.0f;
     }
 
-    float detection_center_x = ((detection.rect.br() + detection.rect.tl()) / 2).x;
+    float detection_center_x = ((bbox.br() + bbox.tl()) / 2).x;
 
     // Subtract by principal point x-coordinate (pixels)
     double delta_x = detection_center_x - camera_matrix.at<double>(0, 2);

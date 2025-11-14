@@ -19,15 +19,15 @@ model::state model::system_model::f(const model::state& current, const model::co
     Eigen::Quaterniond q_current(current.qw(), current.qx(), current.qy(), current.qz());
 
     Eigen::Vector3d accel_corrected(
-        control.ax(),// - current.bias_ax(),
-        control.ay(),// - current.bias_ay(),
-        control.az()// - current.bias_az()
+        control.ax() - current.bias_ax(),
+        control.ay() - current.bias_ay(),
+        control.az() - current.bias_az()
     );
 
     Eigen::Vector3d gyro_corrected(
-        control.gx(),// - current.bias_gx(),
-        control.gy(),// - current.bias_gy(),
-        control.gz()// - current.bias_gz()
+        control.gx() - current.bias_gx(),
+        control.gy() - current.bias_gy(),
+        control.gz() - current.bias_gz()
     );
 
     predicted.wx() = gyro_corrected.x();
@@ -53,9 +53,7 @@ model::state model::system_model::f(const model::state& current, const model::co
     // Update velocity from accelerometer 
     Eigen::Matrix3d rotation_matrix = q_current.toRotationMatrix();
 
-    Eigen::Vector3d accel_world = rotation_matrix * accel_corrected;
-    Eigen::Vector3d gravity(0.0f, 0.0f, -9.81f);
-    accel_world -= gravity;
+    Eigen::Vector3d accel_world = (rotation_matrix * (accel_corrected - Eigen::Vector3d(0.0, 0.0, 9.81)));
 
     Eigen::Vector3d vel_new(current.dx(), current.dy(), current.dz());
     vel_new += accel_world;
@@ -127,13 +125,13 @@ robo::ukf::ukf(double wheel_radius, double wheel_base_y) :
     P.setIdentity();
     P *= 0.1f;
 
-    P(model::state::_x, model::state::_x) = 0.1f;
-    P(model::state::_y, model::state::_y) = 0.1f;
-    P(model::state::_z, model::state::_z) = 0.1f;
-    P(model::state::_qw, model::state::_qw) = 0.01f;
-    P(model::state::_qx, model::state::_qx) = 0.01f;
-    P(model::state::_qy, model::state::_qy) = 0.01f;
-    P(model::state::_qz, model::state::_qz) = 0.01f;
+    P(model::state::_x, model::state::_x) = 0.001;
+    P(model::state::_y, model::state::_y) = 0.001;
+    P(model::state::_z, model::state::_z) = 0.001;
+    P(model::state::_qw, model::state::_qw) = 0.001;
+    P(model::state::_qx, model::state::_qx) = 0.001;
+    P(model::state::_qy, model::state::_qy) = 0.001;
+    P(model::state::_qz, model::state::_qz) = 0.001;
 
     predictor.setCovariance(P);
 
@@ -141,20 +139,20 @@ robo::ukf::ukf(double wheel_radius, double wheel_base_y) :
     Eigen::Matrix<double, model::state::RowsAtCompileTime, model::state::RowsAtCompileTime> Q;
     Q.setZero();
 
-    Q(model::state::_x, model::state::_x) = 0.01f;
-    Q(model::state::_y, model::state::_y) = 0.01f;
-    Q(model::state::_z, model::state::_z) = 0.01f;
-    Q(model::state::_qw, model::state::_qw) = 0.001f;
-    Q(model::state::_qx, model::state::_qx) = 0.001f;
-    Q(model::state::_qy, model::state::_qy) = 0.001f;
-    Q(model::state::_qz, model::state::_qz) = 0.001f;
+    Q(model::state::_x, model::state::_x) = 1e-8;
+    Q(model::state::_y, model::state::_y) = 1e-8;
+    Q(model::state::_z, model::state::_z) = 1e-8;
+    Q(model::state::_qw, model::state::_qw) = 1e-10;
+    Q(model::state::_qx, model::state::_qx) = 1e-10;
+    Q(model::state::_qy, model::state::_qy) = 1e-10;
+    Q(model::state::_qz, model::state::_qz) = 1e-10;
 
-    Q(model::state::_dx, model::state::_dx) = 0.1f;
-    Q(model::state::_dy, model::state::_dy) = 0.1f;
-    Q(model::state::_dz, model::state::_dz) = 0.1f;
-    Q(model::state::_wx, model::state::_wx) = 0.01f;
-    Q(model::state::_wy, model::state::_wy) = 0.01f;
-    Q(model::state::_wz, model::state::_wz) = 0.01f;
+    Q(model::state::_dx, model::state::_dx) = 1e-8;
+    Q(model::state::_dy, model::state::_dy) = 1e-8;
+    Q(model::state::_dz, model::state::_dz) = 1e-8;
+    Q(model::state::_wx, model::state::_wx) = 1e-10;
+    Q(model::state::_wy, model::state::_wy) = 1e-10;
+    Q(model::state::_wz, model::state::_wz) = 1e-10;
 
     Q(model::state::_bias_ax, model::state::_bias_ax) = 0.001f;
     Q(model::state::_bias_ay, model::state::_bias_ay) = 0.001f;
@@ -168,8 +166,8 @@ robo::ukf::ukf(double wheel_radius, double wheel_base_y) :
     // Measurement covariance
     Eigen::Matrix<double, model::encoder_measurement::RowsAtCompileTime, model::encoder_measurement::RowsAtCompileTime> R;
     R.setIdentity();
-    R(model::encoder_measurement::_vel_forward, model::encoder_measurement::_vel_forward) = 0.05f * 0.05f;
-    R(model::encoder_measurement::_wz, model::encoder_measurement::_wz) = 0.01f * 0.01f;
+    R(model::encoder_measurement::_vel_forward, model::encoder_measurement::_vel_forward) = 0.05 * 0.05;
+    R(model::encoder_measurement::_wz, model::encoder_measurement::_wz) = 0.01 * 0.01;
     encoder_measurement_model.setCovariance(R);
 }
 
@@ -185,12 +183,9 @@ void robo::ukf::predict(const imu_reading& imu)
     control.gy() = imu.gy;
     control.gz() = imu.gz;
 
-    // Check eigenvalues
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 19, 19>> es(predictor.getCovariance());
-    std::cout << "Eigenvalues: " << es.eigenvalues().transpose() << std::endl;
-    std::cout << "Min eigenvalue: " << es.eigenvalues().minCoeff() << std::endl;
-
     predictor.predict(system, control);
+
+    std::cout << predictor.getState().block(model::state::_dx, 0, 3, 1).transpose() << "\n";
 }
 
 void robo::ukf::update_encoders(const encoder_reading& encoders)
