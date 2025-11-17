@@ -1,15 +1,29 @@
-//#include <Adafruit_MPU6050.h>
-//#include <Adafruit_Sensor.h>
-#include <Servo.h>
+#include <AccelStepper.h>
+#include <MultiStepper.h>
+
+#include <Adafruit_MotorShield.h>
+
+
 #include <SerialTransfer.h>
+
 
 #include "src/write_buffer.h"
 #include "src/motor_driver.h"
 
 #include <Wire.h>
 
-motor_driver driver;
-Servo scooper_servo;
+#define MotorInterfaceType 4
+
+AccelStepper stepper = AccelStepper(MotorInterfaceType, #, #, #, #);
+
+
+Adafruit_MotorShield AFMS = Adafruit_MotorShield();
+
+Adafruit_DCMotor *m1 = AFMS.getMotor(1);
+Adafruit_DCMotor *m2 = AFMS.getMotor(2);
+Adafruit_DCMotor *m3 = AFMS.getMotor(3);
+Adafruit_DCMotor *m4 = AFMS.getMotor(4);
+
 SerialTransfer transfer;
 
 const unsigned long update_rate_ms = 16;
@@ -55,56 +69,75 @@ void handle_rc_command(rc_command command)
     case (rc_command::stop):
     {
         send_log("STOP");
-        driver.stop();
+        m1->run(RELEASE);
+        m2->run(RELEASE);
+        m3->run(RELEASE);
+        m4->run(RELEASE);
         break;
     }
     case (rc_command::w):
     {
         send_log("W");
-        driver.set_direction(left | right, forward);
-        driver.set_speed(left | right, 255);
+        m1->run(FORWARD);
+        m2->run(FORWARD);
+        m3->run(FORWARD);
+        m4->run(FORWARD);
         break;
     }
     case (rc_command::s):
     {
         send_log("S");
-        driver.set_direction(left | right, backward);
-        driver.set_speed(left | right, 255);
+        m1->run(BACKWARD);
+        m2->run(BACKWARD);
+        m3->run(BACKWARD);
+        m4->run(BACKWARD);
         break;
     }
     case (rc_command::a):
     {
         send_log("A");
-        driver.set_left_direction(backward);
-        driver.set_right_direction(forward);
+        m1->run(FORWARD);
+        m2->run(FORWARD);
+        m3->run(BACKWARD);
+        m4->run(BACKWARD);
         driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::d):
     {
         send_log("D");
-        driver.set_left_direction(forward);
-        driver.set_right_direction(backward);
+        m1->run(BACKWARD);
+        m2->run(BACKWARD);
+        m3->run(FORWARD);
+        m4->run(FORWARD);
         driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::pick_up):
     {
         send_log("PICK UP");
-        driver.stop();
-        // TODO
+        m1->run(RELEASE);
+        m2->run(RELEASE);
+        m3->run(RELEASE);
+        m4->run(RELEASE);
+        stepper.moveTo(#);
+        stepper.run();
         break;
     }
     case (rc_command::servo_ccw):
     {
         send_log("CCW");
-        scooper_servo.write(180);
+        stepper.moveTo(#);
+        stepper.run();     
+        stepper.moveTo(#);
+
         break;
     }
      case (rc_command::servo_cw):
     {0
         send_log("CW");
-        scooper_servo.write(0);
+        stepper.moveTo(#);
+        stepper.run();     
         break;
     }
     default:
@@ -122,14 +155,25 @@ void setup()
     
     Wire.begin();
 
-    driver = motor_driver(2, 3, 4, 7, 5, 6);
-    driver.stop();
-
-    scooper_servo.attach(9);
-    scooper_servo.write(90);
+  
 
     delay(1000);
     send_log("Arduino setup complete.");
+
+    m1->setSpeed(255);
+    m2->setSpeed(255);
+    m3->setSpeed(255);
+    m4->setSpeed(255);
+
+    m1->run(FORWARD);
+    m2->run(FORWARD);
+    m3->run(FORWARD);
+    m4->run(FORWARD);
+
+    m1->run(RELEASE);
+    m2->run(RELEASE);
+    m3->run(RELEASE);
+    m4->run(RELEASE);
 }
 
 void loop() 
@@ -147,7 +191,10 @@ void loop()
     if (!command_processed_this_loop)
     {
         // No commands = stop moving
-        driver.stop();
+        m1->run(RELEASE);
+        m2->run(RELEASE);
+        m3->run(RELEASE);
+        m4->run(RELEASE);
         scooper_servo.write(90);
     }
 
