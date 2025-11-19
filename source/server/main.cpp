@@ -72,7 +72,7 @@ robo::controller controller;
 // Objects we're looking for
 std::vector<std::string> valid_detection_class_names = {"apple", "orange", "sports ball"};
 
-constexpr float delta_yaw_epsilon = 0.1f;
+constexpr float delta_yaw_epsilon = 0.3f;
 constexpr float pickup_y_threshold = 0.8f;
 static std::optional<robo::tracking_result> target = std::nullopt;
 
@@ -82,7 +82,7 @@ static bool is_valid_detection(int label)
         valid_detection_class_names.begin(), 
         valid_detection_class_names.end(), 
         yolo::get_detection_class_name(label)
-    ) == valid_detection_class_names.end();
+    ) != valid_detection_class_names.end();
 }
 
 static void run_voice_detection(robo::voice_detection& voice_detection, asio::steady_timer& timer)
@@ -204,13 +204,13 @@ int main(int argc, char* argv[])
 {
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
 
-    voice_detection.init();
+    //voice_detection.init();
 
     vision_timer.expires_after(std::chrono::seconds(1));
     vision_timer.async_wait(std::bind(&run_vision, std::ref(server), std::ref(vision), std::ref(vision_timer)));
 
-    voice_detection_timer.expires_after(std::chrono::milliseconds(100));
-    voice_detection_timer.async_wait(std::bind(&run_voice_detection, std::ref(voice_detection), std::ref(voice_detection_timer)));
+    //voice_detection_timer.expires_after(std::chrono::milliseconds(100));
+    //voice_detection_timer.async_wait(std::bind(&run_voice_detection, std::ref(voice_detection), std::ref(voice_detection_timer)));
 
     shutdown_signals.async_wait([&](const asio::error_code& error, int signal_number) {
         if (!error) 
@@ -253,7 +253,7 @@ int main(int argc, char* argv[])
                 std::cout << "Rerunning object detection" << std::endl;
 
                 // Rerun object detection
-                vision_timer.expires_at(std::chrono::steady_clock::now() + std::chrono::milliseconds(1));
+                vision_timer.expires_at(std::chrono::steady_clock::now() + std::chrono::milliseconds(5));
                 vision_timer.async_wait(std::bind(&run_vision, std::ref(server), std::ref(vision), std::ref(vision_timer)));
             }
             else
@@ -264,13 +264,12 @@ int main(int argc, char* argv[])
                     {
                         target = result;
                     }
-
-                    // Is this tracker result for our target?
-                    if (result.id == target.value().id)
+                    else if (result.id == target.value().id)
                     {
                         if (!result.is_located)
                         {
                             // TODO: Target is out of view
+                            target = std::nullopt;
                             break;
                         }
 
@@ -288,6 +287,7 @@ int main(int argc, char* argv[])
         }
         else
         {
+            target = std::nullopt;
             if (vision.detections.size() > 0)
             {
                 for (const auto& detection : vision.detections)
@@ -297,8 +297,13 @@ int main(int argc, char* argv[])
                         continue;
                     };
 
+                    std::cout << yolo::get_detection_class_name(detection.label) << std::endl;
                     object_tracker.init(vision.undistorted_camera_frame, detection);
+
+                    std::cout << vision.detections.size() << std::endl;
                 }
+
+                vision.detections.clear();
             }
         }
 
@@ -306,6 +311,8 @@ int main(int argc, char* argv[])
         {
             const auto& result = target.value();
             float delta_yaw = vision.compute_delta_yaw_to_bbox_center(result.bbox);
+
+            std::cout << delta_yaw << std::endl;
 
             // Turn until we're facing the object
             if (std::abs(delta_yaw) > delta_yaw_epsilon)
@@ -343,7 +350,7 @@ int main(int argc, char* argv[])
 
     network_thread.join();
     vision_thread.join();
-    voice_detection_thread.join();
+    //voice_detection_thread.join();
     arduino_serial.close();
 
     return 0;

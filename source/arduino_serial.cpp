@@ -10,7 +10,7 @@ const unsigned char rc_command_header = 0xFF;
 robo::arduino_serial::arduino_serial()
 {
 #ifdef __linux__
-	std::string arduino_port_name = "/dev/ttyUSB0"; // Will always be the case for the Pi
+	std::string arduino_port_name = "/dev/ttyACM0"; // Will always be the case for the Pi
 #else
 	std::string arduino_port_name = "COM5"; // Windows USB (CHANGE TO THE ONE THE ARDUINO IDE SAYS IT'S USING)
 #endif

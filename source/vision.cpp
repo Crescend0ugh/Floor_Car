@@ -143,7 +143,7 @@ void robo::vision::load_camera_calibration_info()
     }
 }
 
-bool robo::vision::initialize_camera()
+bool robo::vision::initialize_camera()  
 {
     capture = cv::VideoCapture(0);
     
