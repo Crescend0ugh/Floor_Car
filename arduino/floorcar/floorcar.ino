@@ -14,7 +14,7 @@
 
 #define MotorInterfaceType 4
 
-AccelStepper stepper = AccelStepper(MotorInterfaceType, #, #, #, #);
+AccelStepper stepper = AccelStepper(MotorInterfaceType, 6, 7, 8, 9);
 
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
@@ -100,7 +100,7 @@ void handle_rc_command(rc_command command)
         m2->run(FORWARD);
         m3->run(BACKWARD);
         m4->run(BACKWARD);
-        driver.set_speed(left | right, 255);
+        //driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::d):
@@ -110,7 +110,7 @@ void handle_rc_command(rc_command command)
         m2->run(BACKWARD);
         m3->run(FORWARD);
         m4->run(FORWARD);
-        driver.set_speed(left | right, 255);
+        //driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::pick_up):
@@ -120,24 +120,25 @@ void handle_rc_command(rc_command command)
         m2->run(RELEASE);
         m3->run(RELEASE);
         m4->run(RELEASE);
-        stepper.moveTo(#);
+        stepper.moveTo(1000);
         stepper.run();
         break;
     }
     case (rc_command::servo_ccw):
     {
         send_log("CCW");
-        stepper.moveTo(#);
+        stepper.moveTo(1000);
         stepper.run();     
-        stepper.moveTo(#);
+        //stepper.moveTo(0);
 
         break;
     }
      case (rc_command::servo_cw):
-    {0
+    {
         send_log("CW");
-        stepper.moveTo(#);
-        stepper.run();     
+        stepper.moveTo(-1000);
+        stepper.run();
+        //stepper.moveTo(0);  
         break;
     }
     default:
@@ -152,13 +153,15 @@ void setup()
     Serial.begin(9600);
     transfer.begin(Serial);
     send_log("Starting...");
-    
-    Wire.begin();
-
-  
 
     delay(1000);
     send_log("Arduino setup complete.");
+
+    pinMode(5, OUTPUT);
+    digitalWrite(5, HIGH);
+
+    pinMode(10, OUTPUT);
+    digitalWrite(10, HIGH);
 
     m1->setSpeed(255);
     m2->setSpeed(255);
@@ -195,7 +198,8 @@ void loop()
         m2->run(RELEASE);
         m3->run(RELEASE);
         m4->run(RELEASE);
-        scooper_servo.write(90);
+        //scooper_servo.write(90);
+        stepper.moveTo(0);
     }
 
     delay(50);
