@@ -2,13 +2,13 @@
 
 #include <iostream>
 
-robo::voice_detection::voice_detection():
-    allowed_commands({ "apple", "orange", "hello" }),
+robo::voice_detection::voice_detection(std::vector<std::string>& commands):
+    allowed_commands(commands), // Make a copy
     audio(30 * 1000)
 {
 }
 
-bool robo::voice_detection::init()
+bool robo::voice_detection::on_init()
 {
     ggml_backend_load_all();
     struct whisper_context_params cparams = whisper_context_default_params();
@@ -55,7 +55,7 @@ bool robo::voice_detection::init()
     if (!audio.init(params.capture_id, WHISPER_SAMPLE_RATE))
     {
         fprintf(stderr, "audio.init() failed!\n");
-        return true;
+        return false;
     }
 
     audio.resume();
@@ -67,8 +67,20 @@ bool robo::voice_detection::init()
     return true;
 }
 
-std::string robo::voice_detection::process()
+void robo::voice_detection::on_shutdown()
 {
+    if (context != nullptr)
+    {
+        whisper_free(context);
+        context = nullptr;
+    }
+}
+
+robo::voice_result robo::voice_detection::process_impl()
+{
+    voice_result result;
+    result.detected = false;
+
     audio.get(2000, pcmf32_cur);
 
     // Manual energy check because I guess vad_simple doesn't do enough?
@@ -82,14 +94,14 @@ std::string robo::voice_detection::process()
     const float min_energy = 0.001f;
     if (energy < min_energy) 
     {
-        return "";  // Too quiet, ignore
+        return result;  // Too quiet, ignore
     }
 
     fprintf(stdout, "Audio energy: %f\n", energy);
 
     if (!::vad_simple(pcmf32_cur, WHISPER_SAMPLE_RATE, 1000, params.vad_thold, params.freq_thold, params.print_energy))
     {
-        return "";
+        return result;
     }
 
     fprintf(stdout, "%s: Speech detected! Processing ...\n", __func__);
@@ -115,7 +127,7 @@ std::string robo::voice_detection::process()
     if (whisper_full(context, wparams, pcmf32_cur.data(), pcmf32_cur.size()) != 0)
     {
         fprintf(stderr, "%s: ERROR: whisper_full() failed\n", __func__);
-        return "";
+        return result;
     }
 
     // estimate command probability
@@ -198,14 +210,18 @@ std::string robo::voice_detection::process()
     const int index = probs_id[0].second;
     const char* best_command = allowed_commands[index].c_str();
 
-    const float min_confidence = 0.75f;
+    // Fill result
+    result.command = std::string(best_command);
+    result.confidence = prob;
+    result.processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start);
 
     // Reject if the maximum confidence is too low
-    if (prob < min_confidence) {
+    if (prob < min_confidence) 
+    {
         fprintf(stdout, "%s: best command '%s' has confidence %f, below threshold %f. Ignoring.\n",
             __func__, allowed_commands[probs_id[0].second].c_str(), probs_id[0].first, min_confidence);
         audio.clear();
-        return "";
+        return result;
     }
 
     fprintf(stdout, "\n");
@@ -216,5 +232,7 @@ std::string robo::voice_detection::process()
     
     audio.clear();
     
-    return std::string(best_command);
+    result.detected = true;
+
+    return result;
 }

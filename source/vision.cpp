@@ -89,7 +89,66 @@ static robo::detection_obb estimate_OBB(pcl::PointCloud<pcl::PointXYZ>::ConstPtr
 
 robo::vision::vision()
 {
-    initialize_camera();
+}
+
+bool robo::vision::on_init()
+{
+    return initialize_camera();
+}
+
+void robo::vision::on_shutdown()
+{
+    if (capture.isOpened())
+    {
+        capture.release();
+    }
+}
+
+robo::vision_result robo::vision::process_impl()
+{
+    vision_result result;
+    result.success = false;
+
+    if (!is_enabled)
+    {
+        return result;
+    }
+
+    // Capture frame
+    bool grabbed = grab_frame();
+    if (!grabbed)
+    {
+        return result;
+    }
+
+    const cv::Mat& image = capture_frame();
+    if (image.empty())
+    {
+        return result;
+    }
+
+    // Run detection and benchmark time
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    std::vector<yolo::detection> new_detections;
+    yolo.detect(image, new_detections);
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+
+    // Update stored detections
+    {
+        std::lock_guard<std::mutex> lock(detection_mutex);
+        detections = new_detections;
+    }
+
+    // Prepare result
+    result.detections = new_detections;
+    result.frame = image.clone();
+    result.processing_time = processing_time;
+    result.success = true;
+
+    return result;
 }
 
 void robo::vision::load_camera_calibration_info()
@@ -157,7 +216,7 @@ bool robo::vision::initialize_camera()
 
     if (!is_intrinsics_loaded && !is_extrinsics_loaded)
     {
-        std::cerr << "Warning: Unable to load necessary calibration data." << std::endl;
+        std::cerr << "Warning: Unable to load necessary calibration data. Vision will be disabled." << std::endl;
         is_enabled = false;
     }
 
@@ -197,7 +256,7 @@ std::vector<robo::detection_obb> robo::vision::estimate_detection_3d_bounds(pcl:
                 camera_space_homogeneous_point.at<float>(0, 0) / w_3d,
                 camera_space_homogeneous_point.at<float>(1, 0) / w_3d,
                 camera_space_homogeneous_point.at<float>(2, 0) / w_3d
-            );
+                );
 
             // Camera space to image plane
             cv::Mat image_space_homogeneous_point = camera_matrix * camera_space_point;
@@ -241,11 +300,14 @@ bool robo::vision::grab_frame()
         return false;
     }
 
+    std::lock_guard<std::mutex> lock(frame_mutex);
     return capture.grab();
 }
 
 const cv::Mat& robo::vision::capture_frame()
 {
+    std::lock_guard<std::mutex> lock(frame_mutex);
+
     capture.retrieve(camera_frame);
 
     if (camera_frame.empty())
@@ -267,26 +329,59 @@ const cv::Mat& robo::vision::capture_frame()
     return final_image;
 }
 
+void robo::vision::clear_detections()
+{
+    std::lock_guard<std::mutex> lock(detection_mutex);
+    detections.clear();
+}
+
 void robo::vision::detect_from_camera()
 {
-    detections.clear();
+    if (!is_enabled)
+    {
+        detections.clear();
+        return;
+    }
 
     const cv::Mat& image = capture_frame();
 
     // Get processing time for the client
     auto start_time = std::chrono::high_resolution_clock::now();
-    yolo.detect(image, detections);
+
+    std::vector<yolo::detection> new_detections;
+    yolo.detect(image, new_detections);
+
     auto end_time = std::chrono::high_resolution_clock::now();
 
-    yolo_processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    // Update detections atomically
+    {
+        std::lock_guard<std::mutex> lock(detection_mutex);
+        detections = std::move(new_detections);
+    }
 }
 
-robo::network::camera_frame robo::vision::serialize_detection_results() const
+
+std::vector<yolo::detection> robo::vision::get_detections() const
 {
+    std::lock_guard<std::mutex> lock(detection_mutex);
+    return detections;
+}
+
+cv::Mat robo::vision::get_latest_frame() const
+{
+    std::lock_guard<std::mutex> lock(frame_mutex);
+    return is_intrinsics_loaded ? undistorted_camera_frame.clone() : camera_frame.clone();
+}
+
+robo::network::camera_frame robo::vision::serialize_detection_results(const vision_result& results) const
+{
+    std::lock_guard<std::mutex> lock(detection_mutex);
+    std::lock_guard<std::mutex> frame_lock(frame_mutex);
+
     cv::Mat image = yolo::annotate_detections(
         (is_intrinsics_loaded) ? undistorted_camera_frame : camera_frame,
         detections,
-        yolo_processing_time
+        results.processing_time
     );
 
     std::vector<uchar> pixels;
@@ -309,7 +404,7 @@ robo::network::camera_frame robo::vision::serialize_detection_results() const
         .frame_height = image.rows,
         .frame_width = image.cols,
         .bgr_pixels = pixels,
-        .processing_time = static_cast<uint16_t>(yolo_processing_time.count()),
+        .processing_time = static_cast<uint16_t>(results.processing_time.count()),
     };
 }
 

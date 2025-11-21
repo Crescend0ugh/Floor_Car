@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "async_processor.h"
 #include "yolo_model.h"
 #include "vector.h"
 #include "network_data.h"
@@ -20,7 +21,13 @@
 
 #include <opencv2/core/eigen.hpp>
 
+#include <asio.hpp>
+
 #include <optional>
+#include <thread>
+#include <functional>
+#include <mutex>
+#include <atomic>
 
 namespace robo
 {
@@ -39,24 +46,40 @@ namespace robo
 		float confidence = 0.0f;
 	};
 
-	class vision
+	// Result type for vision processing
+	struct vision_result
+	{
+		std::vector<yolo::detection> detections;
+		cv::Mat frame;
+		std::chrono::milliseconds processing_time;
+		bool success = false;
+	};
+
+	class vision : public async_processor<vision_result>
 	{
 	private:
 		yolo::yolo_model yolo;
 
 		cv::Mat camera_matrix; // Camera's intrinsic matrix
 		cv::Mat dist_coeffs; // Camera's distortion coefficients
-		cv::Mat lidar_to_camera_transform; // Obtained from calibration (4x4)
+		cv::Mat lidar_to_camera_transform; // Obtained from extrinsic calibration (4x4)
 		cv::Mat camera_to_lidar_transform; // Inverse of lidar_to_camera_transform
 
 		cv::VideoCapture capture;
 
-		std::chrono::milliseconds yolo_processing_time; // For sending to client
-
 		bool is_intrinsics_loaded = false;
 		bool is_extrinsics_loaded = false;
 
+		// Thread safety
+		mutable std::mutex frame_mutex;
+		mutable std::mutex detection_mutex;
+
 		void load_camera_calibration_info();
+
+		// Base class implementations
+		vision_result process_impl() override;
+		bool on_init() override;
+		void on_shutdown() override;
 
 	public:
 		bool is_client_connected = false;
@@ -70,15 +93,25 @@ namespace robo
 		cv::Size image_size = cv::Size{ 640, 480 };
 
 		vision();
+
 		bool initialize_camera();
 
 		std::vector<detection_obb> estimate_detection_3d_bounds(pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_point_cloud) const;
 
 		bool grab_frame();
 		const cv::Mat& capture_frame();
+
+		void clear_detections();
+
+		// Synchronous detection
 		void detect_from_camera();
 
-		robo::network::camera_frame serialize_detection_results() const;
+		// Thread-safe accessors
+		std::vector<yolo::detection> get_detections() const;
+		cv::Mat get_latest_frame() const;
+
+		// Network serialization
+		robo::network::camera_frame serialize_detection_results(const vision_result& results) const;
 
 		// Makeshift
 		float compute_delta_yaw_to_bbox_center(const cv::Rect& bbox) const;

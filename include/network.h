@@ -4,8 +4,8 @@
 	Implements two-way asynchronous TCP socket communication between a server and a client.
 	Message types and protocols are defined in network_data.h.
 	To send a message, the message's corresponding message type (defined in robo::network::protocol) must be passed as the first argument.
-	 
-	This allows the FloorCar server to send positional, visual and environmental data to connected clients 
+
+	This allows the FloorCar server to send positional, visual and environmental data to connected clients
 	for visualization and more seamless debugging.
 
 	In early stages of prototyping, the server also accepts client messages to enable more control over various components.
