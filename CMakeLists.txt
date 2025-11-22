@@ -101,7 +101,10 @@ target_link_libraries(FloorCar_lib
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	target_link_libraries(FloorCar_lib PUBLIC gpiod)
+	target_link_libraries(FloorCar_lib 
+        PUBLIC
+            gpiod
+    )
 endif()
 
 add_executable(FloorCar ${SERVER_SOURCES} source/server/main.cpp)
@@ -161,7 +164,7 @@ target_link_libraries(Calibration PRIVATE ${OpenCV_LIBS})
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(IpDisplay source/ip_display/main.cpp)
-    target_link_libraries(IpDisplay PRIVATE gpiod)
+    target_link_libraries(IpDisplay PRIVATE i2c pthread)
 endif()
 
 message(STATUS "Finished building project.")

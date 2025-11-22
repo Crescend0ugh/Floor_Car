@@ -81,7 +81,7 @@ asio::steady_timer meshing_timer(meshing_io_context);
 
 robo::controller controller;
 
-constexpr float delta_yaw_epsilon = 0.3f;
+constexpr float delta_yaw_epsilon = 3.0f;
 constexpr float pickup_y_threshold = 0.8f;
 static std::optional<robo::tracking_result> target = std::nullopt;
 
@@ -123,7 +123,7 @@ static void run_object_detection(network::server& server, robo::vision& vision)
         {
             if (!result.success) 
             {
-                std::cout << "Detection failed" << std::endl;
+                std::cout << "Object detection failed" << std::endl;
                 return;
             }
 
@@ -133,17 +133,6 @@ static void run_object_detection(network::server& server, robo::vision& vision)
             if (server.get_client_count() > 0) 
             {
                 server.send(robo::network::protocol::camera_feed, vision.serialize_detection_results(result));
-            }
-
-            if (!result.detections.empty()) 
-            {
-                vision.stop_continuous();
-                std::cout << "got detection -> stop continuous" << std::endl;
-                // extrapolation
-            }
-            else 
-            {
-                // do nothing
             }
         }
     );
@@ -260,6 +249,7 @@ int main(int argc, char* argv[])
             {
                 for (const auto& result : results)
                 {
+                    // No target? Set this one as it
                     if (!target.has_value())
                     {
                         target = result;
@@ -306,6 +296,12 @@ int main(int argc, char* argv[])
 
                 vision.clear_detections();
             }
+            
+            // Found at least 1 valid detection -> Stop object detection and start tracking
+            if (!all_invalid)
+            {
+                vision.stop_continuous();
+            }
         }
 
         if (target.has_value())
@@ -341,8 +337,6 @@ int main(int argc, char* argv[])
                 }
             }
         }
-
-        
 
         handle_client_messages();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
