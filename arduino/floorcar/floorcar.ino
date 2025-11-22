@@ -1,24 +1,25 @@
 #include <AccelStepper.h>
 #include <MultiStepper.h>
 
-#include <Adafruit_MotorShield.h>
+#include <Vex.h>
 
+#include <Adafruit_MotorShield.h>
+#include <Servo.h>
 
 #include <SerialTransfer.h>
 
-
 #include "src/write_buffer.h"
-#include "src/motor_driver.h"
+//#include "src/motor_driver.h"
 
 #include <Wire.h>
 
 #define MotorInterfaceType 4
 
-AccelStepper stepper = AccelStepper(MotorInterfaceType, 6, 7, 8, 9);
+AccelStepper stepper = AccelStepper(MotorInterfaceType, 3, 4, 5, 6);
 
+Vex robot;
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
-
 Adafruit_DCMotor *m1 = AFMS.getMotor(1);
 Adafruit_DCMotor *m2 = AFMS.getMotor(2);
 Adafruit_DCMotor *m3 = AFMS.getMotor(3);
@@ -26,7 +27,16 @@ Adafruit_DCMotor *m4 = AFMS.getMotor(4);
 
 SerialTransfer transfer;
 
-const unsigned long update_rate_ms = 16;
+const uint8_t delta_servo_pos = 1;
+uint8_t servo_pos = 90;
+bool servo_going_cw = true;
+Servo servo;
+
+const unsigned long update_rate_ms = 50;
+double delta_time = 0.01;
+
+const int motor_speed = 20;
+
 const uint8_t message_length = 32;
 
 const uint8_t microphone_input_header = 0x02;
@@ -46,11 +56,6 @@ enum rc_command : uint8_t
     servo_cw
 };
 
-void send_microphone_data()
-{
-
-}
-
 // A makeshift Serial.println. Outputs to the Raspberry Pi terminal.
 void send_log(String string)
 {
@@ -62,6 +67,14 @@ void send_log(String string)
     transfer.sendDatum(writer.buffer);
 }
 
+void stop_motors()
+{
+    m1->run(RELEASE);
+    m4->run(RELEASE);
+    m2->run(RELEASE);
+    m3->run(RELEASE);
+}
+
 void handle_rc_command(rc_command command)
 {
     switch (command)
@@ -69,57 +82,54 @@ void handle_rc_command(rc_command command)
     case (rc_command::stop):
     {
         send_log("STOP");
-        m1->run(RELEASE);
-        m2->run(RELEASE);
-        m3->run(RELEASE);
-        m4->run(RELEASE);
+        stop_motors();
         break;
     }
     case (rc_command::w):
     {
         send_log("W");
         m1->run(FORWARD);
+        m4->run(FORWARD);
         m2->run(FORWARD);
         m3->run(FORWARD);
-        m4->run(FORWARD);
         break;
     }
     case (rc_command::s):
     {
         send_log("S");
         m1->run(BACKWARD);
+        m4->run(BACKWARD);
         m2->run(BACKWARD);
         m3->run(BACKWARD);
-        m4->run(BACKWARD);
         break;
     }
     case (rc_command::a):
     {
         send_log("A");
         m1->run(FORWARD);
-        m2->run(FORWARD);
+        m4->run(FORWARD);
+
+        m2->run(BACKWARD);
         m3->run(BACKWARD);
-        m4->run(BACKWARD);
-        //driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::d):
     {
         send_log("D");
         m1->run(BACKWARD);
-        m2->run(BACKWARD);
+        m4->run(BACKWARD);
+
+        m2->run(FORWARD);
         m3->run(FORWARD);
-        m4->run(FORWARD);
         //driver.set_speed(left | right, 255);
         break;
     }
     case (rc_command::pick_up):
     {
         send_log("PICK UP");
-        m1->run(RELEASE);
-        m2->run(RELEASE);
-        m3->run(RELEASE);
-        m4->run(RELEASE);
+
+        stop_motors();
+
         stepper.moveTo(1000);
         stepper.run();
         break;
@@ -150,33 +160,36 @@ void handle_rc_command(rc_command command)
 
 void setup() 
 {
-    Serial.begin(9600);
+    Serial.begin(115200);
     transfer.begin(Serial);
-    send_log("Starting...");
 
-    delay(1000);
-    send_log("Arduino setup complete.");
+    send_log("Setup begin.");
 
-    pinMode(5, OUTPUT);
-    digitalWrite(5, HIGH);
+    delay(500);
 
-    pinMode(10, OUTPUT);
-    digitalWrite(10, HIGH);
+    robot.begin();
 
+    pinMode(2, OUTPUT);
+    digitalWrite(2, HIGH);
+
+    pinMode(7, OUTPUT);
+    digitalWrite(7, HIGH);
+
+    // Motor speed setup
     m1->setSpeed(255);
     m2->setSpeed(255);
     m3->setSpeed(255);
     m4->setSpeed(255);
 
-    m1->run(FORWARD);
-    m2->run(FORWARD);
-    m3->run(FORWARD);
-    m4->run(FORWARD);
+    // Stepper motor
+    stepper.setMaxSpeed(750);
+    stepper.setAcceleration(150);
 
-    m1->run(RELEASE);
-    m2->run(RELEASE);
-    m3->run(RELEASE);
-    m4->run(RELEASE);
+    // Attached to Servo1 = pin 10
+    servo.attach(10);
+    servo.write(90);
+
+    send_log("Setup complete.");
 }
 
 void loop() 
@@ -190,17 +203,30 @@ void loop()
         handle_rc_command(receive_buffer[0]);
         command_processed_this_loop = true;
     }
+    
 
     if (!command_processed_this_loop)
     {
         // No commands = stop moving
-        m1->run(RELEASE);
-        m2->run(RELEASE);
-        m3->run(RELEASE);
-        m4->run(RELEASE);
-        //scooper_servo.write(90);
-        stepper.moveTo(0);
+        stop_motors();
+        //stepper.moveTo(0);
     }
 
-    delay(50);
+    stepper.setSpeed(500);
+    stepper.move(200);
+    stepper.run();
+
+    // Back and forth servo rotation
+    servo_pos = constrain(servo_going_cw ? servo_pos + delta_servo_pos : servo_pos - delta_servo_pos, 0, 180);
+
+    if (servo_pos == 180)
+    {
+        servo_going_cw = false;
+    }
+    else if (servo_pos == 0)
+    {
+        servo_going_cw = true;
+    }
+
+    servo.write(servo_pos);
 }

@@ -29,7 +29,7 @@
 std::atomic<bool> is_running = true;
 
 // Objects we're looking for
-std::vector<std::string> valid_detection_class_names = { "apple", "orange", "sports ball", "person" };
+std::vector<std::string> valid_detection_class_names = { "apple", "orange", "sports ball", "cell phone" };
 
 enum class state
 {
@@ -138,11 +138,12 @@ static void run_object_detection(network::server& server, robo::vision& vision)
             if (!result.detections.empty()) 
             {
                 vision.stop_continuous();
-                //robot_state.store(RobotState::CORRELATING_3D);
+                std::cout << "got detection -> stop continuous" << std::endl;
+                // extrapolation
             }
             else 
             {
-                //robot_state.store(RobotState::IDLE);
+                // do nothing
             }
         }
     );
@@ -236,6 +237,7 @@ int main(int argc, char* argv[])
         controller.update();
         arduino_serial.read();
 
+
         if (!object_tracker.is_empty())
         {
             bool succeeded = vision.grab_frame();
@@ -252,8 +254,6 @@ int main(int argc, char* argv[])
                 target = std::nullopt;
 
                 std::cout << "Rerunning object detection" << std::endl;
-
-                // Rerun object detection
                 run_object_detection(std::ref(server), std::ref(vision));
             }
             else
@@ -288,6 +288,7 @@ int main(int argc, char* argv[])
         else
         {
             target = std::nullopt;
+            bool all_invalid = true;
             if (vision.get_detections().size() > 0)
             {
                 for (const auto& detection : vision.get_detections())
@@ -300,8 +301,7 @@ int main(int argc, char* argv[])
                     };
 
                     object_tracker.init(vision.undistorted_camera_frame, detection);
-
-                    std::cout << vision.get_detections().size() << std::endl;
+                    all_invalid = false;
                 }
 
                 vision.clear_detections();
@@ -341,10 +341,11 @@ int main(int argc, char* argv[])
                 }
             }
         }
+
         
 
         handle_client_messages();
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     network_thread.join();

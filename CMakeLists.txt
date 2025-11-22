@@ -11,6 +11,10 @@ find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
 find_package(SDL2 REQUIRED)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_library(GPIOD_LIBRARY gpiod)
+endif()
+
 #for Adithya
 if(NOT TARGET JsonCpp::JsonCpp)
     # Attempt to find JsonCpp library - modify paths as needed
@@ -37,7 +41,7 @@ endmacro()
 
 add_subdirectory(third_party)
 
-if(WIN32)
+if(WIN32 OR APPLE)
     message(STATUS "Compiling tests.")
     add_subdirectory(tests)
 endif()
@@ -97,7 +101,7 @@ target_link_libraries(FloorCar_lib
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	target_link_libraries(FloorCar_lib PUBLIC pigpio)
+	target_link_libraries(FloorCar_lib PUBLIC gpiod)
 endif()
 
 add_executable(FloorCar ${SERVER_SOURCES} source/server/main.cpp)
@@ -109,7 +113,7 @@ target_link_libraries(FloorCar PRIVATE FloorCar_lib)
 # Client static library and executable target
 ########################################################################
 
-if(WIN32)
+if(WIN32 OR APPLE)
     message(STATUS "Building client app.")
     set(CLIENT_SOURCES
         source/network.cpp
@@ -150,5 +154,14 @@ endif()
 
 add_executable(Calibration source/calibration/main.cpp)
 target_link_libraries(Calibration PRIVATE ${OpenCV_LIBS})
+
+########################################################################
+# IP display on LCD
+########################################################################
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(IpDisplay source/ip_display/main.cpp)
+    target_link_libraries(IpDisplay PRIVATE gpiod)
+endif()
 
 message(STATUS "Finished building project.")

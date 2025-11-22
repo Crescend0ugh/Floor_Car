@@ -15,7 +15,7 @@ robo::arduino_serial::arduino_serial()
 	std::string arduino_port_name = "COM5"; // Windows USB (CHANGE TO THE ONE THE ARDUINO IDE SAYS IT'S USING)
 #endif
 
-	char opened = port.openDevice(arduino_port_name.c_str(), 9600);
+	char opened = port.openDevice(arduino_port_name.c_str(), 115200);
 	if (opened != 1)
 	{
 		std::cerr << "Unable to open Arduino serial port." << std::endl;
