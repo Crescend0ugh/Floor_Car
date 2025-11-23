@@ -8,7 +8,6 @@
 
 	Arduino-to-host messages:
 		- IMU odometry data (subject to change)
-		- Microphone inputs
 */
 
 #pragma once
@@ -17,11 +16,6 @@
 #include "network_data.h"
 #include "serialib.h"
 #include "Packet.h"
-
-struct microphone_data
-{
-	// TODO
-};
 
 namespace robo
 {
@@ -34,9 +28,6 @@ namespace robo
 		uint8_t bytes_read = 0;
 
 		serialib port;
-
-		// Change this
-		std::vector<microphone_data> microphone_inputs;
 
 		uint8_t send_data(const uint16_t& len, const uint8_t packet_id = 0);
 		uint8_t available();

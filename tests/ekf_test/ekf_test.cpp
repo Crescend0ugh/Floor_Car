@@ -1,4 +1,4 @@
-#include "ekf.h"
+#include "kalman_filter.h"
 #include "raylib.h"
 
 #include <iostream>

@@ -37,11 +37,11 @@ double delta_time = 0.01;
 
 const int motor_speed = 20;
 
-const uint8_t message_length = 32;
+const unsigned char log_string_header = 0x03;
+const unsigned char rc_command_header = 0xFF;
 
-const uint8_t microphone_input_header = 0x02;
-const uint8_t log_string_header = 0x03;
-const uint8_t rc_header_byte = 0xFF;
+const uint8_t host_send_buffer_size = 8;
+const uint8_t arduino_recv_buffer_size = 32;
 
 enum rc_command : uint8_t
 {
@@ -196,7 +196,7 @@ void loop()
 {
     bool command_processed_this_loop = false;
 
-    char receive_buffer[8];
+    char receive_buffer[host_send_buffer_size];
     if (transfer.available())
     {
         transfer.rxObj(receive_buffer);

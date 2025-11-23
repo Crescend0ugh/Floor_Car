@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "ekf.h"
+#include "kalman_filter.h"
 
 void model::state::normalize_quaternion()
 {

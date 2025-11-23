@@ -6,24 +6,19 @@
 #define NOUSER            // All USER defines and routines
 #endif
 
-#include "mapgen.h"
-#include "navmesh.h"
-#include "path.h"
+#include "world.h"
 #include "network.h"
 #include "network_data.h"
 #include "vision.h"
 #include "controller.h"
-#include "serialib.h"
 #include "arduino_serial.h"
 #include "voice_detection.h"
 #include "object_tracker.h"
 
-#include <raylib.h>
 #include <opencv2/core/utils/logger.hpp>
 #include <iostream>
 #include <thread>
 #include <functional>
-#include <mutex>
 
 // Set to false when we Ctrl+C and stops the main loop
 std::atomic<bool> is_running = true;
@@ -61,23 +56,8 @@ robo::voice_detection voice_detection(valid_detection_class_names);
 // Arduino serial
 robo::arduino_serial arduino_serial;
 
-// Rotation and translation relative to world coordinate system
-Eigen::Affine3f robot_world_pose = Eigen::Affine3f::Identity(); 
-robo::point_cloud world_point_cloud;
-
 // Navmesh, meshing
-robo::navmesh navmesh(robo::navigation_params
-    {
-        .agent_radius = 0.2f,
-        .agent_height = 0.5f,
-        .max_slope = 30.0f,
-        .max_climb = 0.1f
-    }
-);
-robo::navgeometry navgeometry;
-robo::path path;
-asio::io_context meshing_io_context;
-asio::steady_timer meshing_timer(meshing_io_context);
+robo::world world;
 
 robo::controller controller;
 
@@ -127,7 +107,7 @@ static void run_object_detection(network::server& server, robo::vision& vision)
                 return;
             }
 
-            std::cout << "Detected " << result.detections.size() << " objects in " << result.processing_time.count() << "ms" << std::endl;
+            std::cout << std::format("Detected {} objects in {}ms\n", result.detections.size(), result.processing_time.count());
 
             // Send results to clients
             if (server.get_client_count() > 0) 
@@ -138,30 +118,22 @@ static void run_object_detection(network::server& server, robo::vision& vision)
     );
 }
 
-static void run_meshing()
+// Call with is_returning = true for the return trip so that the entire point cloud gets meshed
+static void run_meshing(robo::world& world, bool is_returning = false)
 {
-    if (world_point_cloud.points->points.empty())
-    {
-        meshing_timer.expires_at(meshing_timer.expiry() + std::chrono::seconds(1));
-        meshing_timer.async_wait(std::bind(&run_meshing));
-        return;
-    }
+    world.is_returning.store(is_returning);
+    world.trigger_single(
+        [&world](const robo::meshing_result& result)
+        {
+            if (!result.success)
+            {
+                std::cout << "Meshing failed" << std::endl;
+                return;
+            }
 
-    // Maybe downsample in robo::point_cloud?
-    // auto downsampled = world_point_cloud.voxel_grid_downsample();
-    auto reconstructed_mesh = world_point_cloud.reconstruct_mesh_from_points(); // This will take a while
-
-    auto components = world_point_cloud.extract_mesh_components(reconstructed_mesh);
-    navgeometry.load(components.vertices, components.triangles);
-
-    // TODO: ALSO FIGURE OUT BOUNDS FOR NAVGEOMETRY TO MAKE NAVMESH GENERATION A LOT FASTER
-    navmesh.set_geometry(navgeometry);
-    navmesh.build();
-    path.init(&navmesh);
-    // path.set_start(); // Our current position
-
-    meshing_timer.expires_at(meshing_timer.expiry() + std::chrono::seconds(10));
-    meshing_timer.async_wait(std::bind(&run_meshing));
+            // TODO: Send results to client
+        }
+    );
 }
 
 static void handle_client_messages()
@@ -203,6 +175,8 @@ int main(int argc, char* argv[])
         std::cerr << "Failed to initialize voice" << std::endl;
         return 1;
     }
+
+    world.initialize();
     
     shutdown_signals.async_wait([&](const asio::error_code& error, int signal_number) {
         if (!error) 

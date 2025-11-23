@@ -3,9 +3,11 @@
 #include <iostream>
 #include <thread>
 
-const unsigned char microphone_data_header = 0x02;
 const unsigned char log_string_header = 0x03;
 const unsigned char rc_command_header = 0xFF;
+
+const uint8_t host_send_buffer_size = 8;
+const uint8_t arduino_recv_buffer_size = 32;
 
 robo::arduino_serial::arduino_serial()
 {
@@ -48,11 +50,6 @@ void robo::arduino_serial::read()
 
 		switch (header)
 		{
-		case (microphone_data_header):
-		{
-			// TODO
-			break;
-		}
 		case (log_string_header):
 		{
 			uint8_t string_length = 0;
@@ -90,7 +87,7 @@ void robo::arduino_serial::write(std::string data)
 		return;
 	}
 
-	char message[8];
+	char message[host_send_buffer_size];
 	strcpy(message, data.c_str());
 	send_datum(message);
 }
@@ -140,7 +137,9 @@ uint8_t robo::arduino_serial::available()
 		status = packet.status;
 
 		if (status <= 0)
+		{
 			reset();
+		}
 	}
 
 	return bytes_read;
@@ -150,7 +149,9 @@ void robo::arduino_serial::reset()
 {
 	char dummy = 0;
 	while (port.available())
+	{
 		port.readChar(&dummy);
+	}
 
 	packet.reset();
 	status = packet.status;

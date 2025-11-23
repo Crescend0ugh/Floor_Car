@@ -53,7 +53,7 @@ endif()
 set(SERVER_SOURCES
     source/arduino_serial.cpp
     source/controller.cpp
-    source/ekf.cpp
+    source/kalman_filter.cpp
     source/mapgen.cpp
     source/navgeometry.cpp
     source/navmesh.cpp
@@ -62,10 +62,11 @@ set(SERVER_SOURCES
     source/path.cpp
     source/vision.cpp
     source/voice_detection.cpp
+    source/world.cpp
     source/yolo_model.cpp
 )
 
-add_library(FloorCar_lib STATIC ${SERVER_SOURCES} "tools/camera_calibration/main.cpp")
+add_library(FloorCar_lib STATIC ${SERVER_SOURCES})
 
 target_include_directories(FloorCar_lib
     PUBLIC
@@ -126,7 +127,7 @@ if(WIN32 OR APPLE)
         source/client/point_cloud_visualizer.cpp
     )
 
-    add_library(FloorCarClient_lib STATIC ${CLIENT_SOURCES} "tools/camera_calibration/main.cpp")
+    add_library(FloorCarClient_lib STATIC ${CLIENT_SOURCES})
 
     # Client static library
     target_include_directories(FloorCarClient_lib
