@@ -65,7 +65,7 @@ set(SERVER_SOURCES
     source/yolo_model.cpp
 )
 
-add_library(FloorCar_lib STATIC ${SERVER_SOURCES})
+add_library(FloorCar_lib STATIC ${SERVER_SOURCES} "tools/camera_calibration/main.cpp")
 
 target_include_directories(FloorCar_lib
     PUBLIC
@@ -104,6 +104,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	target_link_libraries(FloorCar_lib 
         PUBLIC
             gpiod
+            mpu6050
     )
 endif()
 
@@ -125,7 +126,7 @@ if(WIN32 OR APPLE)
         source/client/point_cloud_visualizer.cpp
     )
 
-    add_library(FloorCarClient_lib STATIC ${CLIENT_SOURCES})
+    add_library(FloorCarClient_lib STATIC ${CLIENT_SOURCES} "tools/camera_calibration/main.cpp")
 
     # Client static library
     target_include_directories(FloorCarClient_lib
@@ -152,11 +153,10 @@ if(WIN32 OR APPLE)
 endif()
 
 ########################################################################
-# Camera calibration executable
+# Tools
 ########################################################################
 
-add_executable(Calibration source/calibration/main.cpp)
-target_link_libraries(Calibration PRIVATE ${OpenCV_LIBS})
+add_subdirectory(tools)
 
 ########################################################################
 # IP display on LCD
