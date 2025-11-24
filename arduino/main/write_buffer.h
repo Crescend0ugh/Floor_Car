@@ -1,14 +1,14 @@
 #pragma once
 
-#include "Arduino.h"
+#include <Arduino.h>
 
 #include <string.h>
 
-#define max_capacity 32
+#include "arduino_shared_defs.h"
 
 struct write_buffer
 {
-	unsigned char buffer[max_capacity];
+	unsigned char buffer[arduino::host_recv_buffer_size];
 	size_t offset = 0;
 
 	write_buffer(unsigned char payload_type)
@@ -18,9 +18,9 @@ struct write_buffer
 
 	void write(void* data, size_t data_size)
 	{
-		if (offset + data_size > max_capacity)
+		if (offset + data_size > arduino::host_recv_buffer_size)
 		{
-			data_size = max_capacity - offset; // Truncate to prevent overflow
+			data_size = arduino::host_recv_buffer_size - offset; // Truncate to prevent overflow
 		}
 
 		memcpy(buffer + offset, data, data_size);

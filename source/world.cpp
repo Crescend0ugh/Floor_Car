@@ -278,3 +278,10 @@ size_t robo::world::get_point_cloud_size() const
     std::lock_guard<std::mutex> lock(point_cloud_mutex);
     return world_point_cloud.points->points.size();
 }
+
+void robo::world::clear_point_cloud()
+{
+    std::lock_guard<std::mutex> lock(point_cloud_mutex);
+    world_point_cloud.points->clear();
+    navmesh_ready.store(false);
+}

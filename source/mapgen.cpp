@@ -79,6 +79,7 @@ robo::point_cloud_mesh_components robo::point_cloud::extract_mesh_components(con
 // Automatically downsamples itself when enough points have been added
 void robo::point_cloud::add_point(const robo::vector3f &point)
 {
+    points->push_back({ point.x, point.y, point.z });
     points_since_last_downsample++;
 
     // TODO: Select non-arbitrary value
@@ -88,7 +89,6 @@ void robo::point_cloud::add_point(const robo::vector3f &point)
         points = voxel_grid_downsample(get_adaptive_voxel_size());
         points_since_last_downsample = 0;
     }
-    points->push_back({point.x, point.y, point.z});
 }
 
 // Increase voxel size as point cloud grows

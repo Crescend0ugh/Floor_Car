@@ -1,4 +1,5 @@
 #include "vision.h"
+#include "transforms.h"
 
 #include <pcl/common/centroid.h>
 #include <pcl/filters/passthrough.h>
@@ -168,19 +169,14 @@ void robo::vision::load_camera_calibration_info()
         return;
     }
 
-    cv::FileStorage extrinsics((calibration_results_path / "extrinsics.yml").string(), cv::FileStorage::READ);
-    if (extrinsics.isOpened())
-    {
-        extrinsics["T"] >> lidar_to_camera_transform; // This should be column major
-        camera_to_lidar_transform = lidar_to_camera_transform.inv();
-        // MAKE THIS A 4x4 MATRIX IF IT ISN'T !!!
+    auto& transforms = transforms::get();
+    lidar_to_camera_transform = transforms.lidar_to_camera_cv;
+    camera_to_lidar_transform = transforms.camera_to_lidar_cv;
+    is_extrinsics_loaded = transforms.is_lidar_to_camera_loaded;
 
-        is_extrinsics_loaded = true;
-    }
-    else
+    if (!is_extrinsics_loaded)
     {
-        std::cerr << "Could not open extrinsics.yml" << std::endl;
-        is_extrinsics_loaded = false;
+        std::cerr << "LiDAR-camera extrinsics were not loaded" << std::endl;
     }
 
     cv::FileStorage intrinsics((calibration_results_path / "intrinsics.yml").string(), cv::FileStorage::READ);

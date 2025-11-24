@@ -60,6 +60,7 @@ set(SERVER_SOURCES
     source/network.cpp
     source/object_tracker.cpp
     source/path.cpp
+    source/transforms.cpp
     source/vision.cpp
     source/voice_detection.cpp
     source/world.cpp
@@ -74,6 +75,7 @@ target_include_directories(FloorCar_lib
         third_party/asio/include
         third_party/zpp_bits
         third_party/kalman
+        arduino/main/
 )
 
 target_compile_definitions(FloorCar_lib

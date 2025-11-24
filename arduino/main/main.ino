@@ -8,8 +8,8 @@
 
 #include <SerialTransfer.h>
 
-#include "src/write_buffer.h"
-//#include "src/motor_driver.h"
+#include "write_buffer.h"
+#include "arduino_shared_defs.h"
 
 #include <Wire.h>
 
@@ -32,16 +32,7 @@ uint8_t servo_pos = 90;
 bool servo_going_cw = true;
 Servo servo;
 
-const unsigned long update_rate_ms = 50;
-double delta_time = 0.01;
-
 const int motor_speed = 20;
-
-const unsigned char log_string_header = 0x03;
-const unsigned char rc_command_header = 0xFF;
-
-const uint8_t host_send_buffer_size = 8;
-const uint8_t arduino_recv_buffer_size = 32;
 
 enum rc_command : uint8_t
 {
@@ -59,7 +50,7 @@ enum rc_command : uint8_t
 // A makeshift Serial.println. Outputs to the Raspberry Pi terminal.
 void send_log(String string)
 {
-    write_buffer writer(log_string_header);
+    write_buffer writer(arduino::log_string_header);
     char string_buffer[string.length() + 1];
     string.toCharArray(string_buffer, sizeof(string_buffer));
     writer.write(string_buffer, sizeof(string_buffer));
@@ -90,6 +81,7 @@ void handle_rc_command(rc_command command)
         send_log("W");
         m1->run(FORWARD);
         m4->run(FORWARD);
+
         m2->run(FORWARD);
         m3->run(FORWARD);
         break;
@@ -99,6 +91,7 @@ void handle_rc_command(rc_command command)
         send_log("S");
         m1->run(BACKWARD);
         m4->run(BACKWARD);
+
         m2->run(BACKWARD);
         m3->run(BACKWARD);
         break;
@@ -196,7 +189,7 @@ void loop()
 {
     bool command_processed_this_loop = false;
 
-    char receive_buffer[host_send_buffer_size];
+    char receive_buffer[arduino::host_send_buffer_size];
     if (transfer.available())
     {
         transfer.rxObj(receive_buffer);

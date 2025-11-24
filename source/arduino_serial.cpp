@@ -1,13 +1,8 @@
+#include "arduino_shared_defs.h"
 #include "arduino_serial.h"
 
 #include <iostream>
 #include <thread>
-
-const unsigned char log_string_header = 0x03;
-const unsigned char rc_command_header = 0xFF;
-
-const uint8_t host_send_buffer_size = 8;
-const uint8_t arduino_recv_buffer_size = 32;
 
 robo::arduino_serial::arduino_serial()
 {
@@ -17,7 +12,7 @@ robo::arduino_serial::arduino_serial()
 	std::string arduino_port_name = "COM5"; // Windows USB (CHANGE TO THE ONE THE ARDUINO IDE SAYS IT'S USING)
 #endif
 
-	char opened = port.openDevice(arduino_port_name.c_str(), 115200);
+	char opened = port.openDevice(arduino_port_name.c_str(), arduino::baud_rate);
 	if (opened != 1)
 	{
 		std::cerr << "Unable to open Arduino serial port." << std::endl;
@@ -36,7 +31,7 @@ void robo::arduino_serial::read()
 		return;
 	}
 
-	char buffer[32];
+	char buffer[arduino::host_recv_buffer_size] = { 0 };
 	while (available())
 	{
 		uint16_t receive_size = rx(buffer);
@@ -50,7 +45,7 @@ void robo::arduino_serial::read()
 
 		switch (header)
 		{
-		case (log_string_header):
+		case (arduino::log_string_header):
 		{
 			uint8_t string_length = 0;
 			std::cout << "[Arduino Log]: " << std::string(buffer + sizeof(header)) << std::endl;
@@ -87,7 +82,7 @@ void robo::arduino_serial::write(std::string data)
 		return;
 	}
 
-	char message[host_send_buffer_size];
+	char message[arduino::host_send_buffer_size];
 	strcpy(message, data.c_str());
 	send_datum(message);
 }
@@ -107,7 +102,7 @@ uint8_t robo::arduino_serial::send_data(const uint16_t& len, const uint8_t packe
 uint8_t robo::arduino_serial::available()
 {
 	bool valid = false;
-	uint8_t recChar = 0xFF;
+	uint8_t rec_char = 0xFF;
 
 	if (port.available())
 	{
@@ -115,9 +110,9 @@ uint8_t robo::arduino_serial::available()
 
 		while (port.available())
 		{
-			port.readChar((char*)&recChar);
+			port.readChar((char*)&rec_char);
 
-			bytes_read = packet.parse(recChar, valid);
+			bytes_read = packet.parse(rec_char, valid);
 			status = packet.status;
 
 			if (status != CONTINUE)
@@ -133,7 +128,7 @@ uint8_t robo::arduino_serial::available()
 	}
 	else
 	{
-		bytes_read = packet.parse(recChar, valid);
+		bytes_read = packet.parse(rec_char, valid);
 		status = packet.status;
 
 		if (status <= 0)

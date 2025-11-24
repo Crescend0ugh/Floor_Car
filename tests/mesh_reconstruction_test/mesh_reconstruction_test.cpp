@@ -183,7 +183,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr transform_point_cloud_to_camera_coordinates(
 	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
 	// LiDAR: X = forward, Y = left, Z = up
-	// Camera: X = left, Y = up, -Z = foward
+	// Camera: X = right, Y = up, -Z = foward
 	Eigen::Matrix4f transform_matrix = Eigen::Matrix4f::Identity();
 
 	// New X = -Old Y

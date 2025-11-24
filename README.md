@@ -4,18 +4,20 @@ The FloorBot is a miniature automobile that autonomously navigates and detects o
 This repository contains the code used for the prototype.
 
 ## Libraries Used
-- [Recast](https://github.com/recastnavigation/recastnavigation): Navigation mesh generation and pathfinding
+- [recastnavigation](https://github.com/recastnavigation/recastnavigation): Navigation mesh generation and pathfinding
 - [raylib](https://www.raylib.com/): 3D rendering and visualization for testing
 - [asio (standalone)](https://github.com/chriskohlhoff/asio): Socket networking and asynchronous I/O
-- [zpp_bits](https://github.com/eyalz800/zpp_bits): Binary serialization for networking
+- [zpp_bits](https://github.com/eyalz800/zpp_bits): Binary serialization for networking and serial communication
 - [OpenCV](https://opencv.org/): Computer vision, object detection and camera calibration
 - [Ultralytics YOLO11](https://docs.ultralytics.com/models/yolo11/): Object detection model
 - [ncnn](https://github.com/Tencent/ncnn): Lightweight neural network inference with good performance on Raspberry Pi
 - [PCL](https://pointclouds.org/): Point cloud searching and filtering, mesh reconstruction
 - [Serialib](https://github.com/imabot2/serialib?tab=readme-ov-file): Serial communication between the Arduino UNO and Raspberry Pi
-- [SerialTransfer](https://github.com/PowerBroker2/SerialTransfer): Arduino library ported over so the receiving machine can read the packetized data
+- [SerialTransfer](https://github.com/PowerBroker2/SerialTransfer): Arduino library ported over so the Raspberry Pi can read the packetized data
 - [whisper.cpp](https://github.com/ggml-org/whisper.cpp): Voice command detection
-- [libgpiod](https://github.com/brgl/libgpiod): GPIO utilities (only required on Raspberry Pi)
+- [kalman](https://github.com/mherb/kalman): Kalman filter implementation
+- [libgpiod](https://github.com/brgl/libgpiod): GPIO utilities (Linux only)
+- [libi2c](https://github.com/amaork/libi2c): I2C communication, for reading from IMU and encoders (Linux only)
 
 ## Installing OpenCV (Windows)
 OpenCV is not included directly in the repository. Building from its source increases build times dramatically, 

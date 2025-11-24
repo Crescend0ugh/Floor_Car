@@ -12,6 +12,7 @@
 #include "navmesh.h"
 #include "navgeometry.h"
 #include "path.h"
+#include "transforms.h"
 
 #include <atomic>
 #include <chrono>
@@ -73,5 +74,6 @@ namespace robo
 
 		pose get_current_pose() const;
 		size_t get_point_cloud_size() const;
+		void clear_point_cloud();
 	};
 }

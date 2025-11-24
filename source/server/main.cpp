@@ -6,6 +6,7 @@
 #define NOUSER            // All USER defines and routines
 #endif
 
+#include "transforms.h"
 #include "world.h"
 #include "network.h"
 #include "network_data.h"
@@ -45,6 +46,8 @@ std::atomic<state> robo_state = state::listening_for_voice_command;
 asio::io_context network_context;
 network::server server(network_context, 12345);
 asio::signal_set shutdown_signals(network_context, SIGINT, SIGTERM);
+
+robo::transforms& transforms = robo::transforms::get();
 
 // Vision
 robo::vision vision;
@@ -162,6 +165,8 @@ static void handle_client_messages()
 
 int main(int argc, char* argv[]) 
 {
+    transforms.load();
+
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
 
     if (!vision.initialize()) 
