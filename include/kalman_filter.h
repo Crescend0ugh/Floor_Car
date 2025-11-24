@@ -113,8 +113,5 @@ namespace robo
         void predict(const imu_reading& imu, double delta_time);
         void update_encoders(const encoder_reading& encoders);
         Eigen::Affine3d get_transform() const;
-
-        Eigen::Vector3d get_accel_bias() const;
-        Eigen::Vector3d get_gyro_bias() const;
     };
 }

@@ -87,7 +87,8 @@ void robo::transforms::load(const std::string& calibration_dir)
 		calibration_path = source_path.parent_path().parent_path().append("content").append("calibration_results");
 	}
 
-	if (!std::filesystem::exists(calibration_path)) {
+	if (!std::filesystem::exists(calibration_path)) 
+	{
 		std::cerr << "[Transforms] Calibration directory not found: " << calibration_path << std::endl;
 		return;
 	}
@@ -98,7 +99,8 @@ void robo::transforms::load(const std::string& calibration_dir)
 	std::filesystem::path lidar_camera_file = calibration_path / "lidar_camera.yml";
 	cv::FileStorage lidar_camera_fs(lidar_camera_file.string(), cv::FileStorage::READ);
 
-	if (lidar_camera_fs.isOpened()) {
+	if (lidar_camera_fs.isOpened()) 
+	{
 		lidar_camera_fs["T"] >> lidar_to_camera_cv;
 		camera_to_lidar_cv = lidar_to_camera_cv.inv();
 
@@ -109,7 +111,8 @@ void robo::transforms::load(const std::string& calibration_dir)
 		is_lidar_to_camera_loaded = true;
 		std::cout << "[Transforms] Loaded LiDAR-Camera calibration" << std::endl;
 	}
-	else {
+	else 
+	{
 		std::cerr << "[Transforms] Could not open lidar_camera.yml" << std::endl;
 	}
 
@@ -117,7 +120,8 @@ void robo::transforms::load(const std::string& calibration_dir)
 	std::filesystem::path camera_imu_file = calibration_path / "camera_imu.yml";
 	cv::FileStorage camera_imu_fs(camera_imu_file.string(), cv::FileStorage::READ);
 
-	if (camera_imu_fs.isOpened()) {
+	if (camera_imu_fs.isOpened()) 
+	{
 		camera_imu_fs["T"] >> camera_to_imu_cv;
 		imu_to_camera_cv = camera_to_imu_cv.inv();
 
@@ -128,7 +132,8 @@ void robo::transforms::load(const std::string& calibration_dir)
 		is_camera_to_imu_loaded = true;
 		std::cout << "[Transforms] Loaded Camera-IMU calibration" << std::endl;
 	}
-	else {
+	else 
+	{
 		std::cerr << "[Transforms] Could not open camera_imu.yml" << std::endl;
 	}
 

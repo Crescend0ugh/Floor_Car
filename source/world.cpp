@@ -1,3 +1,4 @@
+#include "transforms.h"
 #include "world.h"
 
 static Eigen::Quaternionf slerp(const Eigen::Quaternionf& q1, const Eigen::Quaternionf& q2, float alpha) 
@@ -236,8 +237,16 @@ robo::pose robo::world::get_pose_at_timestamp(std::chrono::steady_clock::time_po
 
 void robo::world::update_pose()
 {
+    // In IMU space
+    Eigen::Affine3f imu_transform = filter.get_transform().cast<float>();
+
+    Eigen::Affine3f world_transform;
+    world_transform.matrix() = transforms::get().imu_to_world_axis_rotation_eigen * imu_transform.matrix();
+
     pose new_pose;
-    new_pose.transform = filter.get_transform().cast<float>();
+
+    // Convert from IMU to World space
+    new_pose.transform = world_transform;
     new_pose.timestamp = std::chrono::steady_clock::now();
 
     // Add to history

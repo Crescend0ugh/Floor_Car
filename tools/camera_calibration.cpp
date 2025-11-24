@@ -10,7 +10,7 @@
 #include <fstream>
 #include <stdlib.h>
 
-std::filesystem::path get_content_directory(std::string name)
+static std::filesystem::path get_content_directory(std::string name)
 {
 	std::string file_path{ __FILE__ };
 	std::filesystem::path source_path(file_path);
@@ -25,9 +25,10 @@ std::filesystem::path get_content_directory(std::string name)
 	return target_directory;
 }
 
-void remove_files_from_directory(std::filesystem::path path_to_directory)
+static void remove_files_from_directory(std::filesystem::path path_to_directory)
 {
-	for (const auto& entry : std::filesystem::directory_iterator(path_to_directory)) {
+	for (const auto& entry : std::filesystem::directory_iterator(path_to_directory))
+	{
 		if (std::filesystem::is_regular_file(entry.status())) {
 			std::filesystem::remove(entry.path());
 			std::cout << "Removed file: " << entry.path() << std::endl;

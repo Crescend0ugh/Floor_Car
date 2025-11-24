@@ -166,7 +166,6 @@ static void handle_client_messages()
 int main(int argc, char* argv[]) 
 {
     transforms.load();
-
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
 
     if (!vision.initialize()) 
