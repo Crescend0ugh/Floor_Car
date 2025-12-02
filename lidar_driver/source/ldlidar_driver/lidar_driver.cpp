@@ -2,25 +2,27 @@
 // Created by Adithya Somashekhar on 11/16/25.
 //
 
-#include "lidar_driver.h"
-#include "concurrentqueue.h"
+#include "ldlidar_driver/lidar_driver.h"
 
 namespace robo::ld19
 {
     lidar_data_interface::lidar_data_interface(const std::string &path) :
-            serial::serial_interface(path),
+            serial_interface(path),
             data_ready(false),
             packet_index(0),
             state(HEADER),
             current_data_packet({})
     {
-        points.resize(200);
-        set_handler(std::bind(&lidar_data_interface::parse_bytes, this, std::placeholders::_1, std::placeholders::_2));
+        points.resize(2000);
+        serial_interface.set_handler([&](const uint8_t* bytes, size_t len)
+                    {
+                        this->parse_bytes(bytes, len);
+                    });
     }
 
     void lidar_data_interface::open()
     {
-        serial::serial_interface::open(BAUD_RATE);
+        serial_interface.open(BAUD_RATE);
     }
 
     bool lidar_data_interface::parse_byte(uint8_t byte)
@@ -72,17 +74,21 @@ namespace robo::ld19
                 // parse a package is success
                 const auto& packet = current_data_packet;
                 uint32_t diff = ((uint32_t)packet.end_angle + 36000 - (uint32_t)packet.start_angle) % 36000;
-                float step = diff / (POINTS_PER_PACKET - 1) / 100.0;
-                float start = (double)packet.start_angle / 100.0;
+                double step = diff / (POINTS_PER_PACKET - 1) / 100.0;
+                double start = (double)packet.start_angle / 100.0;
+
                 for (int j = 0; j < POINTS_PER_PACKET; ++j) {
-                    float angle = start + (i*step);
+                    double angle = start + step * j;
                     if (angle >= 360.0) {
                         angle -= 360.0;
                     }
-                    uint16_t distance = packet.points[j].distance;
-                    std::cout << angle << " " << distance << "\n";
-                    std::tuple<int16_t, int16_t> coord = {distance * cos(angle), distance * sin(angle)};
+                    uint16_t distance = current_data_packet.points[j].distance;
+                    int16_t x = distance * cos(angle*3.14159 /180);
+                    int16_t y = distance * sin(angle*3.14159 /180);
+                    std::cout << x << " " << y << "\n";
 
+                    points.push_front({x, y});
+                    points.pop_back();
                 }
             }
 

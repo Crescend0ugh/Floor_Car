@@ -29,9 +29,9 @@ namespace robo::serial
     };
 
 
-    struct serial_interface
+    struct serial
     {
-        explicit serial_interface(const std::string &path);
+        explicit serial(const std::string &path);
 
         void open(uint32_t baud, size_t character_size = 8,
                   parity_option parity = parity_option::none,
@@ -62,7 +62,7 @@ namespace robo::serial
 
 
             read_callback(read_buffer, bytes_transferred);
-            serial_port.async_read_some(asio::buffer(read_buffer),  std::bind(&serial_interface::handle_read,
+            serial_port.async_read_some(asio::buffer(read_buffer),  std::bind(&serial::handle_read,
                                                                               this,
                                                                               boost::asio::placeholders::error,
                                                                               boost::asio::placeholders::bytes_transferred));

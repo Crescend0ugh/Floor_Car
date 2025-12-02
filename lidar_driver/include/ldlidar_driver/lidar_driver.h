@@ -98,20 +98,22 @@ namespace robo::ld19
 
 
 
-    class lidar_data_interface : public serial::serial_interface
+    class lidar_data_interface
     {
 
     public:
 
         explicit lidar_data_interface(const std::string& path);
         void open();
+        void poll() { serial_interface.poll(); }
         bool parse_byte(uint8_t byte);
         void parse_bytes(const uint8_t* bytes, size_t bytes_transferred);
         const data_packet& get_current_data_packet() const { return current_data_packet; }
 
-        std::deque<std::tuple<int16_t, int16_t>> points;
+        std::deque<std::pair<float, float>> points;
     private:
 
+        serial::serial serial_interface;
         size_t       packet_index;
         packet_state state;
         data_packet  current_data_packet;
