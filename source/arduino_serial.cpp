@@ -1,11 +1,8 @@
+#include "arduino_shared_defs.h"
 #include "arduino_serial.h"
 
 #include <iostream>
 #include <thread>
-
-const unsigned char microphone_data_header = 0x02;
-const unsigned char log_string_header = 0x03;
-const unsigned char rc_command_header = 0xFF;
 
 robo::arduino_serial::arduino_serial()
 {
@@ -15,7 +12,7 @@ robo::arduino_serial::arduino_serial()
 	std::string arduino_port_name = "COM5"; // Windows USB (CHANGE TO THE ONE THE ARDUINO IDE SAYS IT'S USING)
 #endif
 
-	char opened = port.openDevice(arduino_port_name.c_str(), 9600);
+	char opened = port.openDevice(arduino_port_name.c_str(), arduino::baud_rate);
 	if (opened != 1)
 	{
 		std::cerr << "Unable to open Arduino serial port." << std::endl;
@@ -34,7 +31,7 @@ void robo::arduino_serial::read()
 		return;
 	}
 
-	char buffer[32];
+	char buffer[arduino::host_recv_buffer_size] = { 0 };
 	while (available())
 	{
 		uint16_t receive_size = rx(buffer);
@@ -48,12 +45,7 @@ void robo::arduino_serial::read()
 
 		switch (header)
 		{
-		case (microphone_data_header):
-		{
-			// TODO
-			break;
-		}
-		case (log_string_header):
+		case (arduino::log_string_header):
 		{
 			uint8_t string_length = 0;
 			std::cout << "[Arduino Log]: " << std::string(buffer + sizeof(header)) << std::endl;
@@ -90,7 +82,7 @@ void robo::arduino_serial::write(std::string data)
 		return;
 	}
 
-	char message[8];
+	char message[arduino::host_send_buffer_size];
 	strcpy(message, data.c_str());
 	send_datum(message);
 }
@@ -110,7 +102,7 @@ uint8_t robo::arduino_serial::send_data(const uint16_t& len, const uint8_t packe
 uint8_t robo::arduino_serial::available()
 {
 	bool valid = false;
-	uint8_t recChar = 0xFF;
+	uint8_t rec_char = 0xFF;
 
 	if (port.available())
 	{
@@ -118,9 +110,9 @@ uint8_t robo::arduino_serial::available()
 
 		while (port.available())
 		{
-			port.readChar((char*)&recChar);
+			port.readChar((char*)&rec_char);
 
-			bytes_read = packet.parse(recChar, valid);
+			bytes_read = packet.parse(rec_char, valid);
 			status = packet.status;
 
 			if (status != CONTINUE)
@@ -136,11 +128,13 @@ uint8_t robo::arduino_serial::available()
 	}
 	else
 	{
-		bytes_read = packet.parse(recChar, valid);
+		bytes_read = packet.parse(rec_char, valid);
 		status = packet.status;
 
 		if (status <= 0)
+		{
 			reset();
+		}
 	}
 
 	return bytes_read;
@@ -150,7 +144,9 @@ void robo::arduino_serial::reset()
 {
 	char dummy = 0;
 	while (port.available())
+	{
 		port.readChar(&dummy);
+	}
 
 	packet.reset();
 	status = packet.status;

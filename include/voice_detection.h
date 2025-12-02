@@ -1,5 +1,6 @@
 #pragma once
 
+#include "async_processor.h"
 #include "common-sdl.h"
 #include "common.h"
 #include "whisper.h"
@@ -15,7 +16,8 @@
 #include <thread>
 #include <vector>
 
-struct whisper_params {
+struct whisper_params 
+{
     int32_t n_threads = std::min(2, (int32_t)std::thread::hardware_concurrency());
     int32_t command_ms = 3000;
     int32_t capture_id = -1;
@@ -42,7 +44,15 @@ struct whisper_params {
 
 namespace robo
 {
-    class voice_detection
+    struct voice_result
+    {
+        std::string command;
+        float confidence = 0.0f;
+        std::chrono::milliseconds processing_time;
+        bool detected = false;
+    };
+
+    class voice_detection : public async_processor<voice_result>
     {
     private:
         whisper_params params;
@@ -56,9 +66,16 @@ namespace robo
 
         std::vector<float> pcmf32_cur;
         std::vector<float> pcmf32_prompt;
+
+        // Minimum confidence threshold
+        float min_confidence = 0.75f;
+
+        // Base class overrides
+        voice_result process_impl() override;
+        bool on_init() override;
+        void on_shutdown() override;
+
     public:
-        voice_detection();
-        bool init();
-        std::string process();
+        voice_detection(std::vector<std::string>& commands);
     };
 }

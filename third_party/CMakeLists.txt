@@ -16,8 +16,8 @@ add_subdirectory(serialib)
 
 add_subdirectory(serial_transfer)
 
-add_subdirectory(whisper.cpp) 
+add_subdirectory(whisper.cpp)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	add_subdirectory(pigpio)
+	add_subdirectory(mpu6050)
 endif()

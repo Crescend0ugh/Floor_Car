@@ -7,3 +7,5 @@ out
 content/calibration_inputs
 content/calibration_outputs
 content/calibration_results
+
+CMakeSettings.json

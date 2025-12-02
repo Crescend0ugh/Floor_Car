@@ -11,6 +11,10 @@ find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
 find_package(SDL2 REQUIRED)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_library(GPIOD_LIBRARY gpiod)
+endif()
+
 #for Adithya
 if(NOT TARGET JsonCpp::JsonCpp)
     # Attempt to find JsonCpp library - modify paths as needed
@@ -37,7 +41,7 @@ endmacro()
 
 add_subdirectory(third_party)
 
-if(WIN32)
+if(WIN32 OR APPLE)
     message(STATUS "Compiling tests.")
     add_subdirectory(tests)
 endif()
@@ -49,15 +53,17 @@ endif()
 set(SERVER_SOURCES
     source/arduino_serial.cpp
     source/controller.cpp
-    source/ekf.cpp
+    source/kalman_filter.cpp
     source/mapgen.cpp
     source/navgeometry.cpp
     source/navmesh.cpp
     source/network.cpp
     source/object_tracker.cpp
     source/path.cpp
+    source/transforms.cpp
     source/vision.cpp
     source/voice_detection.cpp
+    source/world.cpp
     source/yolo_model.cpp
 )
 
@@ -69,6 +75,7 @@ target_include_directories(FloorCar_lib
         third_party/asio/include
         third_party/zpp_bits
         third_party/kalman
+        arduino/main/
 )
 
 target_compile_definitions(FloorCar_lib
@@ -97,7 +104,11 @@ target_link_libraries(FloorCar_lib
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	target_link_libraries(FloorCar_lib PUBLIC pigpio)
+	target_link_libraries(FloorCar_lib 
+        PUBLIC
+            gpiod
+            mpu6050
+    )
 endif()
 
 add_executable(FloorCar ${SERVER_SOURCES} source/server/main.cpp)
@@ -109,7 +120,7 @@ target_link_libraries(FloorCar PRIVATE FloorCar_lib)
 # Client static library and executable target
 ########################################################################
 
-if(WIN32)
+if(WIN32 OR APPLE)
     message(STATUS "Building client app.")
     set(CLIENT_SOURCES
         source/network.cpp
@@ -145,10 +156,18 @@ if(WIN32)
 endif()
 
 ########################################################################
-# Camera calibration executable
+# Tools
 ########################################################################
 
-add_executable(Calibration source/calibration/main.cpp)
-target_link_libraries(Calibration PRIVATE ${OpenCV_LIBS})
+add_subdirectory(tools)
+
+########################################################################
+# IP display on LCD
+########################################################################
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(IpDisplay source/ip_display/main.cpp)
+    target_link_libraries(IpDisplay PRIVATE i2c pthread)
+endif()
 
 message(STATUS "Finished building project.")

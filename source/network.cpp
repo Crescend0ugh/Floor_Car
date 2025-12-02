@@ -7,7 +7,7 @@
 
 using namespace network;
 
-io::io(tcp::socket socket):
+io::io(tcp::socket socket) :
     socket(std::move(socket))
 {
 }
@@ -82,10 +82,10 @@ void connection::start()
 
 void connection::write_loop()
 {
-    asio::async_write(socket, asio::buffer(send_queue.front()), 
-        [this, self = shared_from_this()](asio::error_code error, size_t bytes_written) 
+    asio::async_write(socket, asio::buffer(send_queue.front()),
+        [this, self = shared_from_this()](asio::error_code error, size_t bytes_written)
         {
-            if (!error && dequeue()) 
+            if (!error && dequeue())
             {
                 write_loop();
             }
@@ -95,7 +95,7 @@ void connection::write_loop()
 
 void connection::read_loop()
 {
-    asio::async_read(socket, buffer, asio::transfer_exactly(sizeof(size_t)), 
+    asio::async_read(socket, buffer, asio::transfer_exactly(sizeof(size_t)),
         [this, self = shared_from_this()](asio::error_code error, size_t bytes_read)
         {
             if (error)
@@ -177,10 +177,10 @@ size_t server::for_each_active(F f)
             {
                 active.push_back(c);
             }
-        } 
+        }
     }
 
-    for (auto& c : active) 
+    for (auto& c : active)
     {
         f(*c);
     }
@@ -191,9 +191,9 @@ size_t server::for_each_active(F f)
 void server::accept()
 {
     acceptor.async_accept(
-        [this](asio::error_code error, tcp::socket socket) 
+        [this](asio::error_code error, tcp::socket socket)
         {
-            if (!error) 
+            if (!error)
             {
                 std::cout << "Creating session on: "
                     << socket.remote_endpoint().address().to_string()
@@ -204,7 +204,7 @@ void server::accept()
                 session->start();
                 accept();
             }
-            else 
+            else
             {
                 // Clean cancellation. Do nothing.
                 if (error == asio::error::operation_aborted)
@@ -239,7 +239,7 @@ bool server::poll(received_data& data)
 
     std::list<bytes>* active_read_queue = nullptr;
 
-    for (auto& c : active) 
+    for (auto& c : active)
     {
         if (c->pop_read_queue(data))
         {
@@ -268,8 +268,8 @@ size_t server::get_client_count() const
     return registered_connections.size();
 }
 
-client::client(asio::io_context& io_context, const std::string& ip_address, const std::string& port) : 
-    io::io((tcp::socket)io_context), 
+client::client(asio::io_context& io_context, const std::string& ip_address, const std::string& port) :
+    io::io((tcp::socket)io_context),
     resolver(io_context),
     retry_timer(io_context, std::chrono::seconds(3)),
     ip(ip_address),
@@ -298,7 +298,7 @@ void client::resolve_loop(std::string& ip_address, const std::string& port)
     is_connected = false;
 
     resolver.async_resolve(ip_address, port,
-        [&, this](const asio::error_code& error, const tcp::resolver::results_type& endpoints)  
+        [&, this](const asio::error_code& error, const tcp::resolver::results_type& endpoints)
         {
             if (error && error != asio::error::operation_aborted)
             {
@@ -324,7 +324,7 @@ void client::resolve_loop(std::string& ip_address, const std::string& port)
 void client::connect_loop(const tcp::resolver::results_type& endpoints)
 {
     asio::async_connect(socket, endpoints,
-        [&, this](const asio::error_code& error, const asio::ip::tcp::endpoint& /*endpoint*/) 
+        [&, this](const asio::error_code& error, const asio::ip::tcp::endpoint& /*endpoint*/)
         {
             if (error && error != asio::error::operation_aborted)
             {
@@ -354,8 +354,8 @@ void client::connect_loop(const tcp::resolver::results_type& endpoints)
 
 void client::read_loop()
 {
-    asio::async_read(socket, buffer, asio::transfer_exactly(sizeof(size_t)), 
-        [this](asio::error_code error, size_t bytes_read) 
+    asio::async_read(socket, buffer, asio::transfer_exactly(sizeof(size_t)),
+        [this](asio::error_code error, size_t bytes_read)
         {
             if (error)
             {
@@ -392,8 +392,8 @@ void client::read_loop()
 
 void client::write_loop()
 {
-    asio::async_write(socket, asio::buffer(send_queue.front()), 
-        [this](asio::error_code error, size_t bytes_written) 
+    asio::async_write(socket, asio::buffer(send_queue.front()),
+        [this](asio::error_code error, size_t bytes_written)
         {
             if (!error && dequeue()) {
                 write_loop();
@@ -404,8 +404,8 @@ void client::write_loop()
 
 void client::send(bytes data)
 {
-    post(socket.get_executor(), 
-        [=, this] 
+    post(socket.get_executor(),
+        [=, this]
         {
             if (enqueue(std::move(data), true))
             {
